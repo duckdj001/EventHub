@@ -14,28 +14,30 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParticipationsController = void 0;
 const common_1 = require("@nestjs/common");
-const prisma_service_1 = require("../common/prisma.service");
 const jwt_guard_1 = require("../auth/jwt.guard");
+const participations_service_1 = require("./participations.service");
+const dto_1 = require("./dto");
 let ParticipationsController = class ParticipationsController {
-    constructor(prisma) {
-        this.prisma = prisma;
+    constructor(participations) {
+        this.participations = participations;
     }
     async request(eventId, req) {
-        const e = await this.prisma.event.findUnique({ where: { id: eventId } });
-        const status = (e === null || e === void 0 ? void 0 : e.requiresApproval) ? 'requested' : 'approved';
-        return this.prisma.participation.upsert({
-            where: { eventId_userId: { eventId, userId: req.user.sub } },
-            update: { status },
-            create: { eventId, userId: req.user.sub, status },
-        });
+        return this.participations.request(eventId, req.user.sub);
     }
-    async setStatus(eventId, participationId, status) {
-        const p = await this.prisma.participation.findUnique({ where: { id: participationId }, include: { event: true } });
-        if (!p || p.eventId !== eventId)
-            throw new common_1.ForbiddenException();
-        if (p.event.ownerId !== (await this.prisma.event.findUnique({ where: { id: eventId }, select: { ownerId: true } })).ownerId)
-            throw new common_1.ForbiddenException();
-        return this.prisma.participation.update({ where: { id: participationId }, data: { status } });
+    async list(eventId, req) {
+        return this.participations.listForOwner(eventId, req.user.sub);
+    }
+    async me(eventId, req) {
+        return this.participations.getForUser(eventId, req.user.sub);
+    }
+    async cancel(eventId, req) {
+        return this.participations.cancel(eventId, req.user.sub);
+    }
+    async setStatus(eventId, participationId, status, req) {
+        return this.participations.changeStatus(eventId, req.user.sub, participationId, status);
+    }
+    async rate(eventId, participationId, dto, req) {
+        return this.participations.rateParticipant(eventId, req.user.sub, participationId, dto);
     }
 };
 exports.ParticipationsController = ParticipationsController;
@@ -48,17 +50,53 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ParticipationsController.prototype, "request", null);
 __decorate([
+    (0, common_1.Get)('events/:id/participations'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ParticipationsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('events/:id/participations/me'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ParticipationsController.prototype, "me", null);
+__decorate([
+    (0, common_1.Delete)('events/:id/participations/me'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ParticipationsController.prototype, "cancel", null);
+__decorate([
     (0, common_1.Patch)('events/:id/participations/:pid'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('pid')),
     __param(2, (0, common_1.Body)('status')),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ParticipationsController.prototype, "setStatus", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('events/:id/participations/:pid/rating'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('pid')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, dto_1.RateParticipantDto, Object]),
+    __metadata("design:returntype", Promise)
+], ParticipationsController.prototype, "rate", null);
 exports.ParticipationsController = ParticipationsController = __decorate([
     (0, common_1.Controller)(),
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [participations_service_1.ParticipationsService])
 ], ParticipationsController);
 //# sourceMappingURL=participations.controller.js.map

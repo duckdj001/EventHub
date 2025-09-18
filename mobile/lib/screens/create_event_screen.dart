@@ -1,14 +1,20 @@
 // lib/screens/create_event_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/event.dart';
 import '../services/api_client.dart';
 import '../services/upload_service.dart';        // ← есть у тебя
 import '../services/catalog_service.dart';
 import '../widgets/address_picker_field.dart';
 
 class CreateEventScreen extends StatefulWidget {
-  const CreateEventScreen({super.key});
+  const CreateEventScreen({super.key, this.existing});
+
+  final Event? existing;
+
+  bool get isEdit => existing != null;
   @override
   State<CreateEventScreen> createState() => _CreateEventScreenState();
 }
@@ -36,6 +42,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _requiresApproval = false;
   String? _currency = 'RUB';
   String? _categoryId;
+  bool _isAdultOnly = false;
 
   // geo from AddressPickerField
   double? _lat;
@@ -53,7 +60,29 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   @override
   void initState() {
     super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _applyEvent(existing);
+    }
     _fetchCategories();
+  }
+
+  void _applyEvent(Event e) {
+    _titleCtrl.text = e.title;
+    _descCtrl.text = e.description;
+    _addressCtrl.text = e.address ?? '';
+    _cityCtrl.text = e.city;
+    _priceCtrl.text = e.price?.toString() ?? '';
+    _startAt = e.startAt;
+    _endAt = e.endAt;
+    _isPaid = e.isPaid;
+    _requiresApproval = e.requiresApproval;
+    _currency = e.currency ?? 'RUB';
+    _categoryId = e.categoryId;
+    _lat = e.lat;
+    _lon = e.lon;
+    _coverUrl = e.coverUrl;
+    _isAdultOnly = e.isAdultOnly;
   }
 
   Future<void> _fetchCategories() async {
@@ -110,10 +139,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       : '${d.day}.${d.month}.${d.year} '
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
-  Future<void> _create() async {
+  Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
 
-    if (_coverFile == null && _coverUrl == null) {
+    if (_coverFile == null && (_coverUrl == null || _coverUrl!.isEmpty)) {
       _toast('Добавьте обложку');
       return;
     }
@@ -132,9 +161,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
     setState(() => _busy = true);
     try {
-      // 1) upload cover
-      final coverUrl =
-          _coverUrl ?? await uploader.uploadImage(_coverFile!, type: 'covers');
+      // 1) upload cover if changed
+      String? coverUrl = _coverUrl;
+      if (_coverFile != null) {
+        coverUrl = await uploader.uploadImage(_coverFile!, type: 'covers');
+      }
+      if (coverUrl == null || coverUrl.isEmpty) {
+        throw Exception('Не удалось загрузить обложку');
+      }
 
       // 2) compose body
       final body = {
@@ -145,8 +179,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         'endAt': _endAt!.toIso8601String(),
         'address': _addressCtrl.text.trim(),
         'city': _cityCtrl.text.trim(),
-        'lat': _lat!.toString(),
-        'lon': _lon!.toString(),
+        'lat': _lat,
+        'lon': _lon,
         'coverUrl': coverUrl,
         'isPaid': _isPaid,
         'price': _isPaid && _priceCtrl.text.isNotEmpty
@@ -154,12 +188,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             : null,
         'currency': _isPaid ? _currency : null,
         'requiresApproval': _requiresApproval,
+        'isAdultOnly': _isAdultOnly,
       };
 
-      await api.post('/events', body);
+      if (widget.isEdit) {
+        await api.patch('/events/${widget.existing!.id}', body);
+      } else {
+        await api.post('/events', body);
+      }
       if (!mounted) return;
-      Navigator.pop(context, true);
-      _toast('Событие создано');
+      final messenger = ScaffoldMessenger.of(context);
+      final successMsg = widget.isEdit ? 'Событие обновлено' : 'Событие создано';
+      messenger.showSnackBar(SnackBar(content: Text(successMsg)));
+      context.go('/my-events');
     } catch (e) {
       _toast('Ошибка: $e');
     } finally {
@@ -180,7 +221,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Создать событие')),
+      appBar: AppBar(
+        title: Text(widget.isEdit ? 'Редактировать событие' : 'Создать событие'),
+      ),
       body: Form(
         key: _form,
         child: ListView(
@@ -199,9 +242,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: _coverFile != null
                       ? Image.file(_coverFile!, fit: BoxFit.cover)
-                      : const Center(
-                          child: Text('Нажмите, чтобы выбрать обложку'),
-                        ),
+                      : (_coverUrl != null && _coverUrl!.isNotEmpty)
+                          ? Image.network(_coverUrl!, fit: BoxFit.cover)
+                          : const Center(
+                              child: Text('Нажмите, чтобы выбрать обложку'),
+                            ),
                 ),
               ),
             ),
@@ -245,8 +290,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               addressCtrl: _addressCtrl,
               cityCtrl: _cityCtrl,
               onLatLon: (lat, lon) {
-                _lat = lat;
-                _lon = lon;
+                setState(() {
+                  _lat = lat;
+                  _lon = lon;
+                });
               },
             ),
             const SizedBox(height: 8),
@@ -273,7 +320,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Платное мероприятие'),
               value: _isPaid,
-              onChanged: (v) => setState(() => _isPaid = v),
+              onChanged: (v) => setState(() {
+                _isPaid = v;
+                if (!v) {
+                  _priceCtrl.clear();
+                  _currency = 'RUB';
+                } else if (_currency == null) {
+                  _currency = 'RUB';
+                }
+              }),
             ),
             if (_isPaid) ...[
               TextFormField(
@@ -308,13 +363,24 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               onChanged: (v) => setState(() => _requiresApproval = v),
             ),
 
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Только для 18+'),
+              subtitle: const Text('Событие будет скрыто для пользователей младше 18 лет'),
+              value: _isAdultOnly,
+              onChanged: (v) => setState(() => _isAdultOnly = v),
+            ),
+
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: _busy ? null : _create,
+              onPressed: _busy ? null : _submit,
               child: _busy
                   ? const SizedBox(
-                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Создать'),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(widget.isEdit ? 'Сохранить изменения' : 'Создать'),
             ),
           ],
         ),

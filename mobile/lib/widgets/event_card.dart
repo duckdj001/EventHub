@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event.dart';
@@ -11,12 +12,14 @@ class EventCard extends StatelessWidget {
   final Event e;
   final VoidCallback onTap;
   final double? distanceKm;
+  final VoidCallback? onOwnerTap;
 
   const EventCard({
     super.key,
     required this.e,
     required this.onTap,
     this.distanceKm,
+    this.onOwnerTap,
   });
 
   String get _priceText {
@@ -88,6 +91,44 @@ class EventCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
 
+                    if (e.owner != null)
+                      GestureDetector(
+                        onTap: onOwnerTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: const Color(0xFFEFF2F7),
+                                backgroundImage: (e.owner!.avatarUrl != null && e.owner!.avatarUrl!.isNotEmpty)
+                                    ? NetworkImage(e.owner!.avatarUrl!)
+                                    : null,
+                                child: (e.owner!.avatarUrl == null || e.owner!.avatarUrl!.isEmpty)
+                                    ? Text(
+                                        e.owner!.fullName.isNotEmpty
+                                            ? e.owner!.fullName.characters.first.toUpperCase()
+                                            : 'U',
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                e.owner!.fullName.isNotEmpty ? e.owner!.fullName : 'Организатор',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: onOwnerTap != null ? Colors.blue : Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
                     // локация + расстояние
                     Wrap(
                       spacing: 12,
@@ -124,6 +165,17 @@ class EventCard extends StatelessWidget {
                           date,
                           style: const TextStyle(fontSize: 13, color: Colors.black54),
                         ),
+                        if (e.isAdultOnly) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('18+', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w700)),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 6),

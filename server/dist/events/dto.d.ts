@@ -6,6 +6,7 @@ export declare class CreateEventDto {
     price?: number;
     currency?: string;
     requiresApproval?: boolean;
+    isAdultOnly?: boolean;
     startAt: string;
     endAt: string;
     city: string;
@@ -15,4 +16,13 @@ export declare class CreateEventDto {
     isAddressHidden?: boolean;
     capacity?: number;
     coverUrl?: string;
+}
+export declare class UpdateEventDto extends CreateEventDto {
+}
+export declare class CreateReviewDto {
+    rating: number;
+    text?: string;
+}
+export declare class EventReviewsFilterDto {
+    rating?: number;
 }

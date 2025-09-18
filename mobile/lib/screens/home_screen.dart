@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // фильтры
   String? selectedCategoryId;
   bool? filterPaid; // null = все, true = платно, false = бесплатно
+  bool _excludeMine = false;
 
   Future<void> _load() async {
     try {
@@ -57,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       if (selectedCategoryId != null) params.add('categoryId=$selectedCategoryId');
       if (filterPaid != null) params.add('isPaid=${filterPaid!}');
+      if (_excludeMine) params.add('excludeMine=true');
 
       var query = '/events';
       if (params.isNotEmpty) query += '?${params.join('&')}';
@@ -109,130 +111,88 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        // ОДНА линия категорий — без переносов
-        SizedBox(
-          height: 46, // фиксируем, чтобы ничего не «пролезало» вторым рядом
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-            child: Row(
-              children: [
-                ..._firstCategories().map((c) {
-                  final id = c['id'] as String;
-                  final name = c['name'] as String;
-                  final selected = selectedCategoryId == id;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(name),
-                      selected: selected,
-                      onSelected: (_) async {
-                        setState(() { selectedCategoryId = selected ? null : id; loading = true; });
-                        await _load();
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  );
-                }),
-                if (_hasMoreCategories())
-                  ChoiceChip(
-                    label: const Text('Ещё…'),
-                    selected: false,
-                    onSelected: (_) => _showAllCategories(),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-              ],
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: DropdownButtonFormField<String?>(
+            value: selectedCategoryId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Категория'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Все категории')),
+              ...categories.map((c) => DropdownMenuItem(
+                    value: c['id'] as String,
+                    child: Text(c['name'] as String),
+                  )),
+            ],
+            onChanged: (value) async {
+              setState(() {
+                selectedCategoryId = value;
+                loading = true;
+              });
+              await _load();
+            },
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Не показывать мои события'),
+            value: _excludeMine,
+            onChanged: (v) async {
+              setState(() {
+                _excludeMine = v ?? false;
+                loading = true;
+              });
+              await _load();
+            },
           ),
         ),
       ],
     );
   }
 
-  List<Map<String,dynamic>> _firstCategories() {
-    if (categories.length <= 6) return categories;
-    return categories.take(6).toList();
-  }
-
-  bool _hasMoreCategories() => categories.length > 6;
-
-  Future<void> _showAllCategories() async {
-    final picked = await showModalBottomSheet<String?>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Категории', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: categories.map((c) {
-                    final id = c['id'] as String;
-                    final name = c['name'] as String;
-                    final selected = selectedCategoryId == id;
-                    return ChoiceChip(
-                      label: Text(name),
-                      selected: selected,
-                      onSelected: (_) => Navigator.of(context).pop(selected ? null : id),
-                      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(null),
-                    child: const Text('Сбросить'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    if (picked != null || selectedCategoryId != null) {
-      setState(() { selectedCategoryId = picked; loading = true; });
-      await _load();
-    }
-  }
   // ---------- /UI: Фильтры ----------
 
   @override
   Widget build(BuildContext context) {
-    Widget content;
+    late Widget content;
     if (loading) {
-      content = const Center(child: CircularProgressIndicator());
-    } else if (error != null) {
-      content = ListView(
+      content = Column(
         children: [
-          const SizedBox(height: 120),
-          const Center(child: Text('Не удалось загрузить события')),
-          const SizedBox(height: 8),
-          Center(child: Text('$error')),
+          _filters(),
+          const Expanded(child: Center(child: CircularProgressIndicator())),
+        ],
+      );
+    } else if (error != null) {
+      content = Column(
+        children: [
+          _filters(),
+          Expanded(
+            child: ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text('Не удалось загрузить события')),
+                SizedBox(height: 8),
+              ],
+            ),
+          ),
         ],
       );
     } else if (events.isEmpty) {
-      content = ListView(
-        children: const [
-          SizedBox(height: 120),
-          Center(child: Text('Событий пока нет')),
-          SizedBox(height: 8),
+      content = Column(
+        children: [
+          _filters(),
+          Expanded(
+            child: ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text('Событий пока нет')),
+                SizedBox(height: 8),
+              ],
+            ),
+          ),
         ],
       );
     } else {
@@ -246,6 +206,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 e: events[i],
                 distanceKm: i < distances.length ? distances[i] : null,
                 onTap: () => context.push('/events/${events[i].id}'),
+                onOwnerTap: events[i].owner != null
+                    ? () => context.push('/users/${events[i].owner!.id}')
+                    : null,
               ),
             ),
           ),

@@ -22,24 +22,41 @@ let EventsController = class EventsController {
     constructor(events) {
         this.events = events;
     }
-    list(city, categoryId, latStr, lonStr, radiusStr, isPaidStr, owner, req) {
-        var _a;
+    list(city, categoryId, latStr, lonStr, radiusStr, isPaidStr, owner, excludeMineStr, req) {
+        var _a, _b;
         const lat = latStr ? Number(latStr) : undefined;
         const lon = lonStr ? Number(lonStr) : undefined;
         const radiusKm = radiusStr ? Number(radiusStr) : undefined;
         const isPaid = typeof isPaidStr === 'string' ? isPaidStr === 'true' : undefined;
         const ownerId = owner === 'me' ? (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub : undefined;
-        return this.events.list({ city, categoryId, lat, lon, radiusKm, isPaid, ownerId });
-    }
-    getOne(id, req) {
-        var _a;
-        return this.events.getOne(id, (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub);
+        const viewerId = (_b = req === null || req === void 0 ? void 0 : req.user) === null || _b === void 0 ? void 0 : _b.sub;
+        const excludeMine = excludeMineStr === 'true';
+        return this.events.list({ city, categoryId, lat, lon, radiusKm, isPaid, ownerId, excludeMine }, { viewerId });
     }
     create(req, dto) {
         return this.events.create(req.user.sub, dto);
     }
     mine(req) {
         return this.events.list({ ownerId: req.user.sub });
+    }
+    participating(req) {
+        return this.events.listParticipating(req.user.sub);
+    }
+    update(id, req, dto) {
+        return this.events.update(id, req.user.sub, dto);
+    }
+    getOne(id, req) {
+        var _a;
+        return this.events.getOne(id, (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub);
+    }
+    createReview(id, req, dto) {
+        return this.events.createReview(id, req.user.sub, dto);
+    }
+    listReviews(id, query) {
+        return this.events.eventReviews(id, query);
+    }
+    myReview(id, req) {
+        return this.events.myReview(id, req.user.sub);
     }
     setStatus(id, status, req) {
         return this.events.setStatus(id, status, req.user.sub);
@@ -58,19 +75,12 @@ __decorate([
     __param(4, (0, common_1.Query)('radiusKm')),
     __param(5, (0, common_1.Query)('isPaid')),
     __param(6, (0, common_1.Query)('owner')),
-    __param(7, (0, common_1.Req)()),
+    __param(7, (0, common_1.Query)('excludeMine')),
+    __param(8, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, Object]),
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "list", null);
-__decorate([
-    (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], EventsController.prototype, "getOne", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
     (0, common_1.Post)(),
@@ -88,6 +98,59 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "mine", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('participating'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "participating", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_2.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, dto_1.UpdateEventDto]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "getOne", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)(':id/reviews'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, dto_1.CreateReviewDto]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "createReview", null);
+__decorate([
+    (0, common_1.Get)(':id/reviews'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ transform: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, dto_1.EventReviewsFilterDto]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "listReviews", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Get)(':id/reviews/me'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "myReview", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
     (0, common_2.Patch)(':id/status'),

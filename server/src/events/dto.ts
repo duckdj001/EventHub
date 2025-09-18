@@ -1,4 +1,5 @@
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateEventDto {
   @IsString() title!: string;
@@ -11,6 +12,7 @@ export class CreateEventDto {
   @IsString() @IsOptional() currency?: string;
 
   @IsBoolean() @IsOptional() requiresApproval?: boolean;
+  @IsBoolean() @IsOptional() isAdultOnly?: boolean;
 
   @IsDateString() startAt!: string;
   @IsDateString() endAt!: string;
@@ -22,4 +24,26 @@ export class CreateEventDto {
   @IsBoolean() @IsOptional() isAddressHidden?: boolean;
   @IsInt() @IsOptional() capacity?: number;
   @IsString() @IsOptional() coverUrl?: string;
+}
+
+export class UpdateEventDto extends CreateEventDto {}
+
+export class CreateReviewDto {
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @IsOptional()
+  @IsString()
+  text?: string;
+}
+
+export class EventReviewsFilterDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
 }

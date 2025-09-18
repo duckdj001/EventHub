@@ -14,6 +14,14 @@ class CatalogService {
         {'id': 'music', 'name': 'Музыка'},
         {'id': 'sport', 'name': 'Спорт'},
         {'id': 'education', 'name': 'Обучение'},
+        {'id': 'art', 'name': 'Искусство'},
+        {'id': 'business', 'name': 'Бизнес'},
+        {'id': 'family', 'name': 'Семья'},
+        {'id': 'health', 'name': 'Здоровье'},
+        {'id': 'travel', 'name': 'Путешествия'},
+        {'id': 'food', 'name': 'Еда'},
+        {'id': 'tech', 'name': 'Технологии'},
+        {'id': 'games', 'name': 'Игры'},
       ];
     }
   }

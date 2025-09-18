@@ -14,18 +14,96 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersController = void 0;
 const common_1 = require("@nestjs/common");
+const jwt_guard_1 = require("../auth/jwt.guard");
+const users_service_1 = require("./users.service");
+const dto_1 = require("./dto");
 let UsersController = class UsersController {
-    me(req) { var _a, _b; return { userId: (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub) !== null && _b !== void 0 ? _b : null }; }
+    constructor(users) {
+        this.users = users;
+    }
+    me(req) {
+        return this.users.me(req.user.sub);
+    }
+    update(req, dto) {
+        return this.users.updateProfile(req.user.sub, dto);
+    }
+    requestEmail(req, dto) {
+        return this.users.requestEmailChange(req.user.sub, dto);
+    }
+    confirmEmail(req, dto) {
+        return this.users.confirmEmailChange(req.user.sub, dto);
+    }
+    publicProfile(id) {
+        return this.users.profile(id);
+    }
+    reviews(id, query) {
+        return this.users.reviews(id, query);
+    }
+    events(id, query) {
+        return this.users.eventsCreated(id, query);
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
     (0, common_1.Get)('me'),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "me", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Patch)('me'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.UpdateProfileDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "update", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('me/email-request'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.RequestEmailChangeDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "requestEmail", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('me/email-confirm'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.ConfirmEmailChangeDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "confirmEmail", null);
+__decorate([
+    (0, common_1.Get)(':id/public'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "publicProfile", null);
+__decorate([
+    (0, common_1.Get)(':id/reviews'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ transform: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, dto_1.ReviewsFilterDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "reviews", null);
+__decorate([
+    (0, common_1.Get)(':id/events'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, dto_1.UserEventsFilterDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "events", null);
 exports.UsersController = UsersController = __decorate([
-    (0, common_1.Controller)('users')
+    (0, common_1.Controller)('users'),
+    __metadata("design:paramtypes", [users_service_1.UsersService])
 ], UsersController);
 //# sourceMappingURL=users.controller.js.map

@@ -13,6 +13,10 @@ const auth_module_1 = require("./auth/auth.module");
 const jwt_guard_1 = require("./auth/jwt.guard");
 const files_module_1 = require("./files/files.module");
 const events_module_1 = require("./events/events.module");
+const users_module_1 = require("./users/users.module");
+const geo_module_1 = require("./geo/geo.module");
+const participations_module_1 = require("./participations/participations.module");
+const categories_module_1 = require("./categories/categories.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -22,6 +26,10 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             files_module_1.FilesModule,
             events_module_1.EventsModule,
+            users_module_1.UsersModule,
+            geo_module_1.GeoModule,
+            participations_module_1.ParticipationsModule,
+            categories_module_1.CategoriesModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: jwt_guard_1.JwtAuthGuard },

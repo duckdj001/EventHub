@@ -9,7 +9,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateEventDto = void 0;
+exports.EventReviewsFilterDto = exports.CreateReviewDto = exports.UpdateEventDto = exports.CreateEventDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CreateEventDto {
 }
@@ -48,6 +49,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Boolean)
 ], CreateEventDto.prototype, "requiresApproval", void 0);
+__decorate([
+    (0, class_validator_1.IsBoolean)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Boolean)
+], CreateEventDto.prototype, "isAdultOnly", void 0);
 __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
@@ -88,4 +94,32 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateEventDto.prototype, "coverUrl", void 0);
+class UpdateEventDto extends CreateEventDto {
+}
+exports.UpdateEventDto = UpdateEventDto;
+class CreateReviewDto {
+}
+exports.CreateReviewDto = CreateReviewDto;
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(5),
+    __metadata("design:type", Number)
+], CreateReviewDto.prototype, "rating", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateReviewDto.prototype, "text", void 0);
+class EventReviewsFilterDto {
+}
+exports.EventReviewsFilterDto = EventReviewsFilterDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(5),
+    __metadata("design:type", Number)
+], EventReviewsFilterDto.prototype, "rating", void 0);
 //# sourceMappingURL=dto.js.map

@@ -1,5 +1,5 @@
 import { PrismaService } from '../common/prisma.service';
-import { CreateEventDto } from './dto';
+import { CreateEventDto, CreateReviewDto, EventReviewsFilterDto, UpdateEventDto } from './dto';
 export declare class EventsService {
     private prisma;
     constructor(prisma: PrismaService);
@@ -11,7 +11,17 @@ export declare class EventsService {
         radiusKm?: number;
         isPaid?: boolean;
         ownerId?: string;
-    }): import(".prisma/client").Prisma.PrismaPromise<{
+        excludeMine?: boolean;
+    }, options?: {
+        viewerId?: string;
+    }): Promise<({
+        owner: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
         id: string;
         ownerId: string;
         title: string;
@@ -20,6 +30,7 @@ export declare class EventsService {
         price: number | null;
         currency: string | null;
         requiresApproval: boolean;
+        isAdultOnly: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -33,8 +44,15 @@ export declare class EventsService {
         createdAt: Date;
         updatedAt: Date;
         categoryId: string;
-    }[]> | Promise<{
-        distanceKm: number;
+    })[]>;
+    getOne(id: string, currentUserId?: string): Promise<({
+        owner: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
         id: string;
         ownerId: string;
         title: string;
@@ -43,6 +61,7 @@ export declare class EventsService {
         price: number | null;
         currency: string | null;
         requiresApproval: boolean;
+        isAdultOnly: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -56,30 +75,7 @@ export declare class EventsService {
         createdAt: Date;
         updatedAt: Date;
         categoryId: string;
-    }[]>;
-    getOne(id: string, currentUserId?: string): Promise<{
-        id: string;
-        ownerId: string;
-        title: string;
-        description: string;
-        isPaid: boolean;
-        price: number | null;
-        currency: string | null;
-        requiresApproval: boolean;
-        startAt: Date;
-        endAt: Date;
-        city: string;
-        address: string | null;
-        lat: number | null;
-        lon: number | null;
-        isAddressHidden: boolean;
-        capacity: number | null;
-        status: string;
-        coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
-        categoryId: string;
-    } | null>;
+    }) | null>;
     setStatus(id: string, status: 'published' | 'draft', userId: string): Promise<{
         id: string;
         ownerId: string;
@@ -89,6 +85,7 @@ export declare class EventsService {
         price: number | null;
         currency: string | null;
         requiresApproval: boolean;
+        isAdultOnly: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -112,6 +109,7 @@ export declare class EventsService {
         price: number | null;
         currency: string | null;
         requiresApproval: boolean;
+        isAdultOnly: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -135,6 +133,7 @@ export declare class EventsService {
         price: number | null;
         currency: string | null;
         requiresApproval: boolean;
+        isAdultOnly: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -149,4 +148,114 @@ export declare class EventsService {
         updatedAt: Date;
         categoryId: string;
     }>;
+    update(id: string, ownerId: string, dto: UpdateEventDto): Promise<{
+        id: string;
+        ownerId: string;
+        title: string;
+        description: string;
+        isPaid: boolean;
+        price: number | null;
+        currency: string | null;
+        requiresApproval: boolean;
+        isAdultOnly: boolean;
+        startAt: Date;
+        endAt: Date;
+        city: string;
+        address: string | null;
+        lat: number | null;
+        lon: number | null;
+        isAddressHidden: boolean;
+        capacity: number | null;
+        status: string;
+        coverUrl: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        categoryId: string;
+    }>;
+    listParticipating(userId: string): Promise<{
+        participationStatus: string;
+        owner: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+        id: string;
+        ownerId: string;
+        title: string;
+        description: string;
+        isPaid: boolean;
+        price: number | null;
+        currency: string | null;
+        requiresApproval: boolean;
+        isAdultOnly: boolean;
+        startAt: Date;
+        endAt: Date;
+        city: string;
+        address: string | null;
+        lat: number | null;
+        lon: number | null;
+        isAddressHidden: boolean;
+        capacity: number | null;
+        status: string;
+        coverUrl: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        categoryId: string;
+    }[]>;
+    createReview(eventId: string, authorId: string, dto: CreateReviewDto): Promise<{
+        event: {
+            id: string;
+            title: string;
+            startAt: Date;
+            endAt: Date;
+        };
+        author: {
+            id: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        target: string;
+        rating: number;
+        text: string | null;
+        authorId: string;
+        targetUserId: string | null;
+    }>;
+    eventReviews(eventId: string, filter?: EventReviewsFilterDto): Promise<({
+        author: {
+            id: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        target: string;
+        rating: number;
+        text: string | null;
+        authorId: string;
+        targetUserId: string | null;
+    })[]>;
+    myReview(eventId: string, userId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        target: string;
+        rating: number;
+        text: string | null;
+        authorId: string;
+        targetUserId: string | null;
+    } | null>;
+    private archiveExpiredEvents;
+    private calculateAge;
+    private isAdult;
 }

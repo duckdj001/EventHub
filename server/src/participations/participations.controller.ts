@@ -1,22 +1,33 @@
-import { Controller, Param, Post, Req, UseGuards, Patch, Body, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma.service';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { ParticipationsService } from './participations.service';
+import { RateParticipantDto } from './dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ParticipationsController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly participations: ParticipationsService) {}
 
   // подать заявку (или авто-апрув, если requiresApproval=false)
   @Post('events/:id/participations')
   async request(@Param('id') eventId: string, @Req() req: any) {
-    const e = await this.prisma.event.findUnique({ where: { id: eventId } });
-    const status = e?.requiresApproval ? 'requested' : 'approved';
-    return this.prisma.participation.upsert({
-      where: { eventId_userId: { eventId, userId: req.user.sub } },
-      update: { status },
-      create: { eventId, userId: req.user.sub, status },
-    });
+    return this.participations.request(eventId, req.user.sub);
+  }
+
+  @Get('events/:id/participations')
+  async list(@Param('id') eventId: string, @Req() req: any) {
+    return this.participations.listForOwner(eventId, req.user.sub);
+  }
+
+  @Get('events/:id/participations/me')
+  async me(@Param('id') eventId: string, @Req() req: any) {
+    return this.participations.getForUser(eventId, req.user.sub);
+  }
+
+  @Delete('events/:id/participations/me')
+  async cancel(@Param('id') eventId: string, @Req() req: any) {
+    return this.participations.cancel(eventId, req.user.sub);
   }
 
   // изменить статус заявки (только организатор)
@@ -24,13 +35,20 @@ export class ParticipationsController {
   async setStatus(
     @Param('id') eventId: string,
     @Param('pid') participationId: string,
-    @Body('status') status: 'approved'|'rejected'|'cancelled'
+    @Body('status') status: 'approved'|'rejected'|'cancelled',
+    @Req() req: any,
   ) {
-    const p = await this.prisma.participation.findUnique({ where: { id: participationId } , include:{event:true}});
-    if (!p || p.eventId !== eventId) throw new ForbiddenException();
-    // проверим что вызывает владелец события
-    if (p.event.ownerId !== (await this.prisma.event.findUnique({where:{id:eventId}, select:{ownerId:true}}))!.ownerId)
-      throw new ForbiddenException();
-    return this.prisma.participation.update({ where: { id: participationId }, data: { status } });
+    return this.participations.changeStatus(eventId, req.user.sub, participationId, status);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('events/:id/participations/:pid/rating')
+  async rate(
+    @Param('id') eventId: string,
+    @Param('pid') participationId: string,
+    @Body() dto: RateParticipantDto,
+    @Req() req: any,
+  ) {
+    return this.participations.rateParticipant(eventId, req.user.sub, participationId, dto);
   }
 }

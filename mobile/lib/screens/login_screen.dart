@@ -2,11 +2,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ← для FilteringTextInputFormatter
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/api_client.dart';
+import '../services/auth_store.dart';
 import '../services/upload_service.dart';
-import 'package:go_router/go_router.dart';
+import '../widgets/auth_scope.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -16,8 +18,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   // Сервисы
-  final api = ApiClient('http://localhost:3000');
-  final uploader = UploadService();
+  late final UploadService uploader;
+  AuthStore? _auth;
 
   // Табы: Вход / Регистрация
   late final TabController _tab;
@@ -43,6 +45,13 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    uploader = UploadService();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _auth ??= AuthScope.of(context);
   }
 
   @override
@@ -65,15 +74,10 @@ class _LoginScreenState extends State<LoginScreen>
   // ================= LOGIN =================
   Future<void> _login() async {
     if (!_loginForm.currentState!.validate()) return;
+    final auth = _auth ?? AuthScope.of(context);
     setState(() => _loginBusy = true);
     try {
-      final res = await api.post('/auth/login', {
-        'email': _loginEmail.text.trim(),
-        'password': _loginPass.text,
-      });
-      // Если у тебя есть метод сохранения токена — можно добавить тут:
-      // await api.storeToken(res['accessToken']);
-        await api.storeToken(res['accessToken']);
+      await auth.login(_loginEmail.text.trim(), _loginPass.text);
       if (!mounted) return;
       context.go('/'); // на главную
     } catch (e) {
@@ -105,14 +109,23 @@ class _LoginScreenState extends State<LoginScreen>
               }
               setSt(() => busy = true);
               try {
+                final auth = _auth ?? AuthScope.of(context);
+                final api = auth.api;
                 await api.post('/auth/verify', {
                   'email': email,
                   'code': code,
-                });
+                }, auth: false);
                 if (!mounted) return;
                 Navigator.of(ctx).pop(); // закрыть лист
-                _toast('E-mail подтверждён!');
-                _tab.animateTo(0); // на вкладку «Вход»
+                try {
+                  await auth.login(email, _regPass.text);
+                  if (!mounted) return;
+                  context.go('/');
+                  _toast('Добро пожаловать!');
+                } catch (err) {
+                  _toast('E-mail подтверждён! Войдите, используя свои данные.');
+                  _tab.animateTo(0);
+                }
               } catch (e) {
                 ScaffoldMessenger.of(ctx).showSnackBar(
                   SnackBar(content: Text('Ошибка: $e')),
@@ -125,7 +138,9 @@ class _LoginScreenState extends State<LoginScreen>
             Future<void> resend() async {
               setSt(() => busy = true);
               try {
-                await api.post('/auth/resend', {'email': email});
+                final auth = _auth ?? AuthScope.of(context);
+                final api = auth.api;
+                await api.post('/auth/resend', {'email': email}, auth: false);
                 ScaffoldMessenger.of(ctx).showSnackBar(
                   const SnackBar(content: Text('Код отправлен ещё раз')),
                 );
@@ -246,7 +261,8 @@ class _LoginScreenState extends State<LoginScreen>
         'avatarUrl': avatarUrl,
       };
 
-      await api.post('/auth/register', body);
+      final auth = _auth ?? AuthScope.of(context);
+      await auth.api.post('/auth/register', body, auth: false);
 
       if (!mounted) return;
       // сразу открываем лист для ввода кода
