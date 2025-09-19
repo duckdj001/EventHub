@@ -33,8 +33,13 @@ let UsersController = class UsersController {
     confirmEmail(req, dto) {
         return this.users.confirmEmailChange(req.user.sub, dto);
     }
-    publicProfile(id) {
-        return this.users.profile(id);
+    publicProfile(id, req) {
+        var _a;
+        const viewerId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub;
+        return this.users.profile(id, { viewerId });
+    }
+    search(q, limit = '10') {
+        return this.users.search(q !== null && q !== void 0 ? q : '', Number(limit) || 10);
     }
     reviews(id, query) {
         return this.users.reviews(id, query);
@@ -82,10 +87,19 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/public'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "publicProfile", null);
+__decorate([
+    (0, common_1.Get)('search'),
+    __param(0, (0, common_1.Query)('q')),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "search", null);
 __decorate([
     (0, common_1.Get)(':id/reviews'),
     __param(0, (0, common_1.Param)('id')),

@@ -10,6 +10,8 @@ import 'screens/edit_profile_screen.dart';
 import 'screens/my_events_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/public_profile_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/settings_screen.dart';
 import 'services/auth_store.dart';
 
 class MainScaffold extends StatelessWidget {
@@ -17,11 +19,12 @@ class MainScaffold extends StatelessWidget {
 
   final Widget child;
 
-  static const _destinations = ['/', '/create', '/profile'];
+  static const _destinations = ['/', '/my-events', '/profile', '/settings'];
 
   int _indexForLocation(String location) {
-    if (location.startsWith('/create')) return 1;
-    if (location.startsWith('/profile') || location.startsWith('/my-events')) return 2;
+    if (location.startsWith('/my-events')) return 1;
+    if (location.startsWith('/profile')) return 2;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -40,8 +43,9 @@ class MainScaffold extends StatelessWidget {
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.event_outlined), selectedIcon: Icon(Icons.event), label: 'События'),
-          NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle), label: 'Создать'),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Мои события'),
           NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Настройки'),
         ],
       ),
     );
@@ -77,6 +81,8 @@ GoRouter buildRouter(AuthStore auth) {
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
           GoRoute(path: '/profile/edit', builder: (_, __) => const EditProfileScreen()),
           GoRoute(path: '/my-events', builder: (_, __) => const MyEventsScreen()),
+          GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+          GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
         ],
       ),
       GoRoute(

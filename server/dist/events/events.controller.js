@@ -22,7 +22,7 @@ let EventsController = class EventsController {
     constructor(events) {
         this.events = events;
     }
-    list(city, categoryId, latStr, lonStr, radiusStr, isPaidStr, owner, excludeMineStr, req) {
+    list(city, categoryId, latStr, lonStr, radiusStr, isPaidStr, owner, excludeMineStr, timeframe, startDate, endDate, req) {
         var _a, _b;
         const lat = latStr ? Number(latStr) : undefined;
         const lon = lonStr ? Number(lonStr) : undefined;
@@ -31,7 +31,19 @@ let EventsController = class EventsController {
         const ownerId = owner === 'me' ? (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub : undefined;
         const viewerId = (_b = req === null || req === void 0 ? void 0 : req.user) === null || _b === void 0 ? void 0 : _b.sub;
         const excludeMine = excludeMineStr === 'true';
-        return this.events.list({ city, categoryId, lat, lon, radiusKm, isPaid, ownerId, excludeMine }, { viewerId });
+        return this.events.list({
+            city,
+            categoryId,
+            lat,
+            lon,
+            radiusKm,
+            isPaid,
+            ownerId,
+            excludeMine,
+            timeframe,
+            startDate,
+            endDate,
+        }, { viewerId });
     }
     create(req, dto) {
         return this.events.create(req.user.sub, dto);
@@ -76,9 +88,12 @@ __decorate([
     __param(5, (0, common_1.Query)('isPaid')),
     __param(6, (0, common_1.Query)('owner')),
     __param(7, (0, common_1.Query)('excludeMine')),
-    __param(8, (0, common_1.Req)()),
+    __param(8, (0, common_1.Query)('timeframe')),
+    __param(9, (0, common_1.Query)('startDate')),
+    __param(10, (0, common_1.Query)('endDate')),
+    __param(11, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, String, String, String, Object]),
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "list", null);
 __decorate([

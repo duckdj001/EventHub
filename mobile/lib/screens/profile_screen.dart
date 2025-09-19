@@ -6,10 +6,15 @@ import 'package:intl/intl.dart';
 
 import '../models/event.dart';
 import '../models/review.dart';
+import '../models/user_profile.dart';
 import '../services/auth_store.dart';
 import '../services/participation_service.dart';
 import '../services/user_service.dart';
 import '../widgets/auth_scope.dart';
+import '../widgets/social_connections_sheet.dart';
+import '../theme/app_spacing.dart';
+import '../theme/components/components.dart';
+import '../theme/app_theme_extension.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,6 +22,8 @@ class ProfileScreen extends StatefulWidget {
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
+
+enum _ReviewsPanel { organizer, participant }
 
 class _ProfileScreenState extends State<ProfileScreen> {
   ParticipationService? _participationService;
@@ -43,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _participantReviewsError;
   List<Review> _participantReviews = const [];
   int? _participantReviewsFilter;
+  _ReviewsPanel _reviewsPanel = _ReviewsPanel.organizer;
 
   ParticipationService get _service =>
       _participationService ??= ParticipationService();
@@ -240,107 +248,283 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = _auth ?? AuthScope.of(context);
     final user = auth.user;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Профиль'),
-        actions: [
-          IconButton(
-            onPressed: auth.isRefreshingProfile || _loadingParticipation
-                ? null
-                : () => _refresh(),
-            icon: auth.isRefreshingProfile || _loadingParticipation
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            tooltip: 'Обновить',
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Профиль')),
+        body: const Center(child: Text('Профиль не найден')),
+      );
+    }
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Профиль'),
+          actions: [
+            IconButton(
+              onPressed: auth.isRefreshingProfile || _loadingParticipation
+                  ? null
+                  : () => _refresh(),
+              icon: auth.isRefreshingProfile || _loadingParticipation
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+              tooltip: 'Обновить профиль',
+            ),
+            IconButton(
+              onPressed: () => context.push('/profile/edit'),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Редактировать',
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Обзор'),
+              Tab(text: 'События'),
+              Tab(text: 'Отзывы'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildOverviewTab(user),
+            _buildEventsTab(),
+            _buildReviewsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewTab(UserProfile user) {
+    final auth = _auth ?? AuthScope.of(context);
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+        children: [
+          AppSurface(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(user.avatarUrl!)
+                          : null,
+                      child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                          ? const Icon(Icons.person_outline, size: 32)
+                          : null,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.fullName.isNotEmpty ? user.fullName : user.email,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user.email,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (user.bio != null && user.bio!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(user.bio!, style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildSocialCard(user),
+          const SizedBox(height: AppSpacing.md),
+          _buildStatsSection(),
+          const SizedBox(height: AppSpacing.md),
+          AppSurface(
+            padding: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.event_note_outlined),
+                  title: const Text('Мои события'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/my-events'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Настройки и тема'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Выйти'),
+                  onTap: () async {
+                    await auth.logout();
+                    if (!mounted) return;
+                    context.go('/login');
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: user == null
-          ? const Center(child: Text('Профиль не найден'))
-          : RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundImage:
-                            (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                                ? NetworkImage(user.avatarUrl!)
-                                : null,
-                        child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                            ? const Icon(Icons.person_outline, size: 32)
-                            : null,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              user.fullName.isNotEmpty ? user.fullName : user.email,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(user.email, style: const TextStyle(color: Colors.black54)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (user.bio != null && user.bio!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(user.bio!, style: const TextStyle(fontSize: 16)),
+    );
+  }
+
+  Widget _buildEventsTab() {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+        children: [
+          _buildCreatedEventsSection(),
+          const SizedBox(height: AppSpacing.md),
+          AppSurface(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: _buildParticipationSection(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewsTab() {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+        children: [
+          AppSurface(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Показывать', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: AppSpacing.sm),
+                SegmentedButton<_ReviewsPanel>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _ReviewsPanel.organizer,
+                      label: Text('Как организатор'),
+                      icon: Icon(Icons.workspace_premium_outlined),
+                    ),
+                    ButtonSegment(
+                      value: _ReviewsPanel.participant,
+                      label: Text('Как участник'),
+                      icon: Icon(Icons.emoji_people_outlined),
+                    ),
                   ],
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: () async {
-                      await context.push('/profile/edit');
-                      await _refresh();
-                    },
-                    child: const Text('Редактировать профиль'),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildStatsSection(),
-                  const SizedBox(height: 24),
-                  _buildCreatedEventsSection(),
-                  const Divider(),
-                  _buildParticipationSection(),
-                  const Divider(),
-                  _buildReviewsSection(),
-                  const Divider(),
-                  _buildParticipantReviewsSection(),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.event_note_outlined),
-                    title: const Text('Управление событиями'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/my-events'),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text('Выйти'),
-                    onTap: () async {
-                      await auth.logout();
-                      if (!context.mounted) return;
-                      context.go('/login');
-                    },
-                  ),
-                ],
-              ),
+                  selected: <_ReviewsPanel>{_reviewsPanel},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _reviewsPanel = selection.first;
+                    });
+                  },
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppSurface(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: _reviewsPanel == _ReviewsPanel.organizer
+                ? _buildReviewsSection()
+                : _buildParticipantReviewsSection(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialCard(UserProfile user) {
+    final social = user.social;
+    return AppSurface(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.md),
+      child: Row(
+        children: [
+          _socialCounter(
+            label: 'Подписчики',
+            count: social.followers,
+            onTap: () => _showConnectionsSheet(followers: true),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          _socialCounter(
+            label: 'Подписки',
+            count: social.following,
+            onTap: () => _showConnectionsSheet(followers: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _socialCounter({required String label, required int count, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                count.toString(),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showConnectionsSheet({required bool followers}) async {
+    final auth = _auth ?? AuthScope.of(context);
+    final user = auth.user;
+    if (user == null) return;
+
+    final loader = followers
+        ? () => _userService.followers(user.id)
+        : () => _userService.following(user.id);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SocialConnectionsSheet(
+        title: followers ? 'Ваши подписчики' : 'Вы подписаны',
+        loader: loader,
+      ),
     );
   }
 
@@ -405,43 +589,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final stats = _auth?.user?.stats;
     if (stats == null) return const SizedBox.shrink();
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Рейтинг организатора', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStars(stats.ratingAvg),
-                const SizedBox(width: 8),
-                Text(stats.ratingAvg.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text('  •  ${stats.ratingCount} отзывов', style: const TextStyle(color: Colors.black54)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              children: [
-                Chip(
-                  avatar: const Icon(Icons.event_available_outlined, size: 18),
-                  label: Text('Предстоящие события: ${stats.eventsUpcoming}'),
-                ),
-                Chip(
-                  avatar: const Icon(Icons.history, size: 18),
-                  label: Text('Прошедшие события: ${stats.eventsPast}'),
-                ),
-                Chip(
-                  avatar: const Icon(Icons.person_outline, size: 18),
-                  label: Text('Рейтинг участника: ${stats.participantRatingAvg.toStringAsFixed(1)} (${stats.participantRatingCount})'),
-                ),
-              ],
-            ),
-          ],
-        ),
+    final theme = Theme.of(context);
+
+    return AppSurface(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Рейтинг организатора', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              _buildStars(stats.ratingAvg),
+              const SizedBox(width: AppSpacing.xs),
+              Text(stats.ratingAvg.toStringAsFixed(1),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text('  •  ${stats.ratingCount} отзывов',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              Chip(
+                avatar: Icon(Icons.event_available_outlined, size: 18, color: theme.colorScheme.primary),
+                label: Text('Предстоящие события: ${stats.eventsUpcoming}'),
+              ),
+              Chip(
+                avatar: Icon(Icons.history, size: 18, color: theme.colorScheme.primary),
+                label: Text('Прошедшие события: ${stats.eventsPast}'),
+              ),
+              Chip(
+                avatar: Icon(Icons.person_outline, size: 18, color: theme.colorScheme.primary),
+                label: Text(
+                    'Рейтинг участника: ${stats.participantRatingAvg.toStringAsFixed(1)} (${stats.participantRatingCount})'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -449,56 +636,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildCreatedEventsSection() {
     if (_loadingCreatedEvents && _createdEvents.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_createdEventsError != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text('Не удалось загрузить события: $_createdEventsError',
-            style: const TextStyle(color: Colors.redAccent)),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Text(
+          'Не удалось загрузить события: $_createdEventsError',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
+        ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Созданные события', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            DropdownButton<String>(
-              value: _createdFilter,
-              items: const [
-                DropdownMenuItem(value: 'upcoming', child: Text('Предстоящие')),
-                DropdownMenuItem(value: 'past', child: Text('Прошедшие')),
-                DropdownMenuItem(value: 'all', child: Text('Все')),
-              ],
-              onChanged: (value) {
-                if (value != null) _loadCreatedEvents(filter: value);
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (_createdEvents.isEmpty)
-          const Text('Вы ещё не создали событий')
-        else
-          ..._createdEvents.map(_buildCreatedEventTile),
-        if (_loadingCreatedEvents)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Center(child: CircularProgressIndicator()),
+    final theme = Theme.of(context);
+
+    return AppSurface(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Созданные события', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              DropdownButton<String>(
+                value: _createdFilter,
+                items: const [
+                  DropdownMenuItem(value: 'upcoming', child: Text('Предстоящие')),
+                  DropdownMenuItem(value: 'past', child: Text('Прошедшие')),
+                  DropdownMenuItem(value: 'all', child: Text('Все')),
+                ],
+                onChanged: (value) {
+                  if (value != null) _loadCreatedEvents(filter: value);
+                },
+              ),
+            ],
           ),
-      ],
+          const SizedBox(height: AppSpacing.sm),
+          if (_createdEvents.isEmpty)
+            Text('Вы ещё не создали событий', style: theme.textTheme.bodyMedium)
+          else
+            ..._createdEvents.map(_buildCreatedEventTile),
+          if (_loadingCreatedEvents)
+            const Padding(
+              padding: EdgeInsets.only(top: AppSpacing.sm),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _buildCreatedEventTile(Event event) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: EdgeInsets.zero,
       child: ListTile(
         onTap: () => context.push('/events/${event.id}'),
         leading: event.coverUrl != null && event.coverUrl!.isNotEmpty
@@ -637,56 +832,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileReviewTile(Review review) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: const Color(0xFFEFF2F7),
-                  backgroundImage: (review.author.avatarUrl != null && review.author.avatarUrl!.isNotEmpty)
-                      ? NetworkImage(review.author.avatarUrl!)
-                      : null,
-                  child: (review.author.avatarUrl == null || review.author.avatarUrl!.isEmpty)
-                      ? Text(review.author.initials)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(review.author.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          _buildStars(review.rating.toDouble(), size: 14),
-                          const SizedBox(width: 6),
-                          Text('${review.rating}/5', style: const TextStyle(color: Colors.black54, fontSize: 12)),
-                        ],
-                      ),
-                    ],
+    final theme = Theme.of(context);
+    final borderRadius = Theme.of(context).extension<AppThemeExtension>()?.panelRadius ?? BorderRadius.circular(24);
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: () => context.push('/users/${review.author.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: theme.colorScheme.surfaceVariant,
+                    backgroundImage: (review.author.avatarUrl != null && review.author.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(review.author.avatarUrl!)
+                        : null,
+                    child: (review.author.avatarUrl == null || review.author.avatarUrl!.isEmpty)
+                        ? Text(review.author.initials, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))
+                        : null,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(review.author.fullName, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            _buildStars(review.rating.toDouble(), size: 14),
+                            const SizedBox(width: 6),
+                            Text('${review.rating}/5',
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    DateFormat('dd.MM.yyyy').format(review.createdAt),
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+              if (review.event != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Событие: ${review.event!.title}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ),
-                Text(DateFormat('dd.MM.yyyy').format(review.createdAt), style: const TextStyle(color: Colors.black45, fontSize: 12)),
-              ],
-            ),
-            if (review.event != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('Событие: ${review.event!.title}', style: const TextStyle(color: Colors.black54)),
-              ),
-            if (review.text != null && review.text!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(review.text!),
-              ),
-          ],
+              if (review.text != null && review.text!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(review.text!, style: theme.textTheme.bodyMedium),
+                ),
+            ],
+          ),
         ),
       ),
     );

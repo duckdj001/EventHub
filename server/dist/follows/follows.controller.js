@@ -15,27 +15,67 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FollowsController = void 0;
 const common_1 = require("@nestjs/common");
 const follows_service_1 = require("./follows.service");
+const public_decorator_1 = require("../auth/public.decorator");
 let FollowsController = class FollowsController {
     constructor(follows) {
         this.follows = follows;
     }
     follow(id, req) {
-        var _a, _b;
-        const me = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub) !== null && _b !== void 0 ? _b : 'anonymous';
+        var _a;
+        const me = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub;
+        if (!me)
+            throw new common_1.UnauthorizedException();
         return this.follows.follow(me, id);
+    }
+    unfollow(id, req) {
+        var _a;
+        const me = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub;
+        if (!me)
+            throw new common_1.UnauthorizedException();
+        return this.follows.unfollow(me, id);
+    }
+    followers(id) {
+        return this.follows.followersOf(id);
+    }
+    following(id) {
+        return this.follows.followingOf(id);
     }
 };
 exports.FollowsController = FollowsController;
 __decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('follow'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], FollowsController.prototype, "follow", null);
+__decorate([
+    (0, common_1.Delete)('follow'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], FollowsController.prototype, "unfollow", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('followers'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], FollowsController.prototype, "followers", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('following'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], FollowsController.prototype, "following", null);
 exports.FollowsController = FollowsController = __decorate([
-    (0, common_1.Controller)('users/:id/follow'),
+    (0, common_1.Controller)('users/:id'),
     __metadata("design:paramtypes", [follows_service_1.FollowsService])
 ], FollowsController);
 //# sourceMappingURL=follows.controller.js.map

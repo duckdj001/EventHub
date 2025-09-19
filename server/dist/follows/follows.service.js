@@ -12,16 +12,57 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FollowsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../common/prisma.service");
+const USER_BRIEF_SELECT = {
+    id: true,
+    firstName: true,
+    lastName: true,
+    avatarUrl: true,
+};
 let FollowsService = class FollowsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    follow(followerId, followeeId) {
+    async follow(followerId, followeeId) {
+        if (followerId === followeeId) {
+            throw new common_1.BadRequestException('Нельзя подписаться на себя');
+        }
         return this.prisma.follow.upsert({
             where: { followerId_followeeId: { followerId, followeeId } },
             update: {},
             create: { followerId, followeeId },
         });
+    }
+    async unfollow(followerId, followeeId) {
+        await this.prisma.follow.deleteMany({ where: { followerId, followeeId } });
+        return { ok: true };
+    }
+    async followersOf(userId) {
+        const rows = await this.prisma.follow.findMany({
+            where: { followeeId: userId },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                createdAt: true,
+                follower: { select: USER_BRIEF_SELECT },
+            },
+        });
+        return rows.map((row) => ({
+            ...row.follower,
+            followedAt: row.createdAt,
+        }));
+    }
+    async followingOf(userId) {
+        const rows = await this.prisma.follow.findMany({
+            where: { followerId: userId },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                createdAt: true,
+                followee: { select: USER_BRIEF_SELECT },
+            },
+        });
+        return rows.map((row) => ({
+            ...row.followee,
+            followedAt: row.createdAt,
+        }));
     }
 };
 exports.FollowsService = FollowsService;

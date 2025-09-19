@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +9,9 @@ import '../models/event.dart';
 import '../models/review.dart';
 import '../models/user_profile.dart';
 import '../services/user_service.dart';
+import '../widgets/auth_scope.dart';
 import '../widgets/event_card.dart';
+import '../widgets/social_connections_sheet.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
@@ -24,6 +28,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   UserProfile? _profile;
   bool _loadingProfile = true;
   String? _profileError;
+  bool _followProcessing = false;
 
   List<Event> _events = const [];
   bool _loadingEvents = true;
@@ -146,6 +151,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = _profile;
+    final auth = AuthScope.maybeOf(context);
     final loading = _loadingProfile && profile == null;
     final error = _profileError;
 
@@ -159,56 +165,222 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   ? const Center(child: Text('Профиль не найден'))
                   : RefreshIndicator(
                       onRefresh: _loadAll,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          _buildHeader(profile),
-                          const SizedBox(height: 24),
-                          _buildStats(profile),
-                          const SizedBox(height: 24),
-                          _buildEventsSection(),
-                          const SizedBox(height: 24),
-                          _buildReviewsSection(),
-                          const SizedBox(height: 24),
-                          _buildParticipantReviewsSection(),
-                        ],
-                      ),
+                      child: Builder(builder: (context) {
+                        final isMe = auth?.user?.id == profile.id;
+                        return ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            _buildHeader(profile, isMe: isMe),
+                            const SizedBox(height: 16),
+                            _buildSocial(profile),
+                            const SizedBox(height: 24),
+                            _buildStats(profile),
+                            const SizedBox(height: 24),
+                            _buildEventsSection(),
+                            const SizedBox(height: 24),
+                            _buildReviewsSection(),
+                            const SizedBox(height: 24),
+                            _buildParticipantReviewsSection(),
+                          ],
+                        );
+                      }),
                     ),
     );
   }
 
-  Widget _buildHeader(UserProfile profile) {
-    final name = profile.fullName.isNotEmpty ? profile.fullName : profile.email;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildHeader(UserProfile profile, {required bool isMe}) {
+    final fallbackName = profile.fullName.isNotEmpty
+        ? profile.fullName
+        : profile.id;
+    final name = fallbackName;
+    final isFollowing = profile.social.isFollowedByViewer;
+
+    Widget buildFollowButton() {
+      if (isMe) return const SizedBox.shrink();
+      if (_followProcessing) {
+        return FilledButton(
+          onPressed: null,
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+          ),
+        );
+      }
+      if (isFollowing) {
+        return OutlinedButton.icon(
+          onPressed: () => _handleFollowToggle(false),
+          icon: const Icon(Icons.check),
+          label: const Text('Вы подписаны'),
+        );
+      }
+      return FilledButton.icon(
+        onPressed: () => _handleFollowToggle(true),
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('Подписаться'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 36,
-          backgroundColor: const Color(0xFFEFF2F7),
-          backgroundImage: (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
-              ? NetworkImage(profile.avatarUrl!)
-              : null,
-          child: (profile.avatarUrl == null || profile.avatarUrl!.isEmpty)
-              ? Text(name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700))
-              : null,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: const Color(0xFFEFF2F7),
+              backgroundImage: (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
+                  ? NetworkImage(profile.avatarUrl!)
+                  : null,
+              child: (profile.avatarUrl == null || profile.avatarUrl!.isEmpty)
+                  ? Text(name.characters.first.toUpperCase(),
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700))
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  if (profile.bio != null && profile.bio!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(profile.bio!),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 16),
-        Expanded(
+        if (!isMe) ...[
+          const SizedBox(height: 16),
+          buildFollowButton(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSocial(UserProfile profile) {
+    final social = profile.social;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          children: [
+            _socialCounter(
+              label: 'Подписчики',
+              count: social.followers,
+              onTap: () => _showConnectionsSheet(followers: true),
+            ),
+            const SizedBox(width: 12),
+            _socialCounter(
+              label: 'Подписки',
+              count: social.following,
+              onTap: () => _showConnectionsSheet(followers: false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _socialCounter({required String label, required int count, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+              Text(
+                count.toString(),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 4),
-              Text(profile.email, style: const TextStyle(color: Colors.black54)),
-              if (profile.bio != null && profile.bio!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(profile.bio!),
-                ),
+              Text(label, style: const TextStyle(color: Colors.black54)),
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Future<void> _handleFollowToggle(bool follow) async {
+    final profile = _profile;
+    if (profile == null) return;
+
+    final auth = AuthScope.maybeOf(context);
+    if (auth == null || !auth.isLoggedIn) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Необходимо войти в аккаунт')));
+        context.push('/login');
+      }
+      return;
+    }
+
+    setState(() {
+      _followProcessing = true;
+    });
+
+    try {
+      if (follow) {
+        await _userService.follow(profile.id);
+      } else {
+        await _userService.unfollow(profile.id);
+      }
+
+      final current = _profile;
+      if (current == null) return;
+      final social = current.social;
+      final nextFollowers = math.max(0, social.followers + (follow ? 1 : -1));
+      setState(() {
+        _profile = current.copyWith(
+          social: UserSocial(
+            followers: nextFollowers,
+            following: social.following,
+            isFollowedByViewer: follow,
+          ),
+        );
+      });
+
+      try {
+        await auth.refreshProfile();
+      } catch (_) {}
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось обновить подписку: $err')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _followProcessing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showConnectionsSheet({required bool followers}) async {
+    final title = followers ? 'Подписчики' : 'Подписки';
+    final loader = followers
+        ? () => _userService.followers(widget.userId)
+        : () => _userService.following(widget.userId);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SocialConnectionsSheet(title: title, loader: loader),
     );
   }
 
@@ -451,6 +623,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(review.text!),
+              ),
+            if (review.event != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Событие: ${review.event!.title}',
+                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                ),
               ),
           ],
         ),

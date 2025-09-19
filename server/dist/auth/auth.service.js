@@ -63,6 +63,9 @@ let AuthService = class AuthService {
         this.jwt = jwt;
     }
     async register(dto) {
+        if (!dto.acceptedTerms) {
+            throw new common_1.BadRequestException('Необходимо согласиться с пользовательским соглашением');
+        }
         const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
         if (exists)
             throw new common_1.ConflictException('Этот e-mail уже зарегистрирован');
@@ -78,6 +81,7 @@ let AuthService = class AuthService {
                     lastName: dto.lastName,
                     birthDate: new Date(dto.birthDate),
                     avatarUrl: dto.avatarUrl,
+                    termsAcceptedAt: new Date(),
                     emailVerified: false,
                     emailVerifyCode: code,
                     emailVerifyExpires: expiresAt,

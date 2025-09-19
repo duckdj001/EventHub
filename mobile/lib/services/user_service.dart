@@ -1,6 +1,8 @@
 import '../models/event.dart';
 import '../models/review.dart';
+import '../models/social_connection.dart';
 import '../models/user_profile.dart';
+import '../models/user_summary.dart';
 import 'api_client.dart';
 
 class UserService {
@@ -40,6 +42,26 @@ class UserService {
     return UserProfile.fromJson(res as Map<String, dynamic>);
   }
 
+  Future<void> follow(String userId) async {
+    await api.post('/users/$userId/follow', {});
+  }
+
+  Future<void> unfollow(String userId) async {
+    await api.delete('/users/$userId/follow');
+  }
+
+  Future<List<SocialConnection>> followers(String userId) async {
+    final res = await api.get('/users/$userId/followers', auth: false);
+    final list = (res as List).cast<Map<String, dynamic>>();
+    return list.map(SocialConnection.fromJson).toList();
+  }
+
+  Future<List<SocialConnection>> following(String userId) async {
+    final res = await api.get('/users/$userId/following', auth: false);
+    final list = (res as List).cast<Map<String, dynamic>>();
+    return list.map(SocialConnection.fromJson).toList();
+  }
+
   Future<List<Event>> eventsCreated(String userId, {String filter = 'all'}) async {
     final query = filter == 'all' ? '' : '?filter=$filter';
     final res = await api.get('/users/$userId/events$query');
@@ -55,5 +77,14 @@ class UserService {
     final res = await api.get('/users/$userId/reviews$query');
     final list = (res as List).cast<Map<String, dynamic>>();
     return list.map(Review.fromJson).toList();
+  }
+
+  Future<List<UserSummary>> search(String query, {int limit = 10}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    final uri = '/users/search?q=${Uri.encodeComponent(trimmed)}&limit=$limit';
+    final res = await api.get(uri, auth: false);
+    final list = (res as List).cast<Map<String, dynamic>>();
+    return list.map(UserSummary.fromJson).toList();
   }
 }

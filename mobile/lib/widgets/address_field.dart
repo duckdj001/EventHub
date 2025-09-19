@@ -28,7 +28,7 @@ class _AddressFieldState extends State<AddressField> {
     if (q.length < 3) { setState(()=>suggestions=[]); return; }
     setState(()=>loading=true);
     final uri = Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(q)}&format=json&addressdetails=1&limit=5');
-    final res = await http.get(uri, headers: {'User-Agent': 'EventHub/1.0'});
+    final res = await http.get(uri, headers: {'User-Agent': 'Vibe/1.0'});
     final arr = json.decode(res.body) as List;
     setState(() { suggestions = arr; loading = false; });
   }

@@ -9,6 +9,8 @@ import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
 import { ParticipationsModule } from './participations/participations.module';
 import { CategoriesModule } from './categories/categories.module';
+import { FollowsModule } from './follows/follows.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { CategoriesModule } from './categories/categories.module';
     GeoModule,
     ParticipationsModule,
     CategoriesModule,
+    FollowsModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard }, // наш кастомный guard

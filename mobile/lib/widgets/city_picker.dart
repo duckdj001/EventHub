@@ -32,7 +32,7 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
       '?format=json&limit=8&addressdetails=1&accept-language=ru'
       '&q=${Uri.encodeComponent(q)}'
     );
-    final res = await http.get(uri, headers: {'User-Agent':'EventHub/1.0'});
+    final res = await http.get(uri, headers: {'User-Agent':'Vibe/1.0'});
     final arr = json.decode(res.body) as List;
     setState(() { items = arr; loading = false; });
   }

@@ -14,7 +14,7 @@ export declare class CreateEventDto {
     lat?: number;
     lon?: number;
     isAddressHidden?: boolean;
-    capacity?: number;
+    capacity: number;
     coverUrl?: string;
 }
 export declare class UpdateEventDto extends CreateEventDto {

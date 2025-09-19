@@ -8,6 +8,7 @@ class UserProfile {
   final String? bio;
   final String? pendingEmail;
   final UserStats stats;
+  final UserSocial social;
 
   const UserProfile({
     required this.id,
@@ -19,22 +20,48 @@ class UserProfile {
     this.bio,
     this.pendingEmail,
     this.stats = const UserStats(),
+    this.social = const UserSocial(),
   });
 
   String get fullName => '$firstName $lastName'.trim();
+
+  UserProfile copyWith({
+    String? firstName,
+    String? lastName,
+    String? avatarUrl,
+    DateTime? birthDate,
+    String? bio,
+    String? pendingEmail,
+    UserStats? stats,
+    UserSocial? social,
+  }) {
+    return UserProfile(
+      id: id,
+      email: email,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      birthDate: birthDate ?? this.birthDate,
+      bio: bio ?? this.bio,
+      pendingEmail: pendingEmail ?? this.pendingEmail,
+      stats: stats ?? this.stats,
+      social: social ?? this.social,
+    );
+  }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     final profile = json['profile'] as Map<String, dynamic>?;
     return UserProfile(
       id: json['id'] as String,
-      email: json['email'] as String,
-      firstName: (json['firstName'] ?? profile?['firstName'] ?? '') as String,
-      lastName: (json['lastName'] ?? profile?['lastName'] ?? '') as String,
+      email: (json['email'] as String?) ?? '',
+      firstName: (json['firstName'] as String?) ?? (profile?['firstName'] as String?) ?? '',
+      lastName: (json['lastName'] as String?) ?? (profile?['lastName'] as String?) ?? '',
       avatarUrl: (json['avatarUrl'] ?? profile?['avatarUrl']) as String?,
       birthDate: _parseDate(json['birthDate'] ?? profile?['birthDate']),
       bio: (json['bio'] ?? profile?['bio']) as String?,
       pendingEmail: json['pendingEmail'] as String?,
       stats: UserStats.fromJson(json['stats'] as Map<String, dynamic>?),
+      social: UserSocial.fromJson(json['social'] as Map<String, dynamic>?),
     );
   }
 
@@ -44,6 +71,27 @@ class UserProfile {
     }
     if (value is DateTime) return value;
     return null;
+  }
+}
+
+class UserSocial {
+  final int followers;
+  final int following;
+  final bool isFollowedByViewer;
+
+  const UserSocial({
+    this.followers = 0,
+    this.following = 0,
+    this.isFollowedByViewer = false,
+  });
+
+  factory UserSocial.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const UserSocial();
+    return UserSocial(
+      followers: (json['followers'] as num?)?.toInt() ?? 0,
+      following: (json['following'] as num?)?.toInt() ?? 0,
+      isFollowedByViewer: json['isFollowedByViewer'] == true,
+    );
   }
 }
 

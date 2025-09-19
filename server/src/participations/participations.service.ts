@@ -4,6 +4,9 @@ import { PrismaService } from '../common/prisma.service';
 import { RateParticipantDto } from './dto';
 
 const OWNER_CAN_REQUEST_ERROR = 'Организатор уже участвует по умолчанию';
+const SEAT_OCCUPYING_STATUSES = ['approved', 'attended'] as const;
+
+type SeatOccupyingStatus = (typeof SEAT_OCCUPYING_STATUSES)[number];
 
 @Injectable()
 export class ParticipationsService {
@@ -12,7 +15,7 @@ export class ParticipationsService {
   private async getEventOrThrow(eventId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { id: true, ownerId: true, requiresApproval: true, isAdultOnly: true },
+      select: { id: true, ownerId: true, requiresApproval: true, isAdultOnly: true, capacity: true },
     });
     if (!event) throw new NotFoundException('Событие не найдено');
     return event;
@@ -35,14 +38,38 @@ export class ParticipationsService {
     }
 
     const status = event.requiresApproval ? 'requested' : 'approved';
-    const participation = await this.prisma.participation.upsert({
-      where: { eventId_userId: { eventId, userId } },
-      update: { status },
-      create: { eventId, userId, status },
-      include: { user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true } } },
+    const participation = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.participation.findUnique({
+        where: { eventId_userId: { eventId, userId } },
+        select: { id: true, status: true },
+      });
+
+      if (status === 'approved' && event.capacity != null) {
+        const alreadyApproved = existing ? this.isSeatOccupyingStatus(existing.status) : false;
+        if (!alreadyApproved) {
+          const approvedCount = await tx.participation.count({
+            where: {
+              eventId,
+              status: { in: Array.from(SEAT_OCCUPYING_STATUSES) },
+            },
+          });
+          if (approvedCount >= event.capacity) {
+            throw new BadRequestException('Свободных мест не осталось');
+          }
+        }
+      }
+
+      return tx.participation.upsert({
+        where: { eventId_userId: { eventId, userId } },
+        update: { status },
+        create: { eventId, userId, status },
+        include: { user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true } } },
+      });
     });
 
-    return { ...participation, autoconfirmed: !event.requiresApproval };
+    const availableSpots = await this.calculateRemainingSpots(eventId, event.capacity);
+
+    return { ...participation, autoconfirmed: !event.requiresApproval, availableSpots };
   }
 
   async listForOwner(eventId: string, ownerId: string) {
@@ -101,7 +128,7 @@ export class ParticipationsService {
     const participation = await this.prisma.participation.findUnique({
       where: { id: participationId },
       include: {
-        event: { select: { ownerId: true, id: true } },
+        event: { select: { ownerId: true, id: true, capacity: true } },
       },
     });
     if (!participation || participation.eventId !== eventId) {
@@ -111,21 +138,40 @@ export class ParticipationsService {
       throw new ForbiddenException('Нет доступа');
     }
 
-    return this.prisma.participation.update({
-      where: { id: participationId },
-      data: { status },
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatarUrl: true,
-            email: true,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (status === 'approved' && participation.event.capacity != null) {
+        const approvedCount = await tx.participation.count({
+          where: {
+            eventId,
+            id: { not: participationId },
+            status: { in: Array.from(SEAT_OCCUPYING_STATUSES) },
+          },
+        });
+        if (approvedCount >= participation.event.capacity) {
+          throw new BadRequestException('Свободных мест не осталось');
+        }
+      }
+
+      return tx.participation.update({
+        where: { id: participationId },
+        data: { status },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              email: true,
+            },
           },
         },
-      },
+      });
     });
+
+    const availableSpots = await this.calculateRemainingSpots(eventId, participation.event.capacity);
+
+    return { ...updated, availableSpots };
   }
 
   async getForUser(eventId: string, userId: string) {
@@ -146,7 +192,9 @@ export class ParticipationsService {
       },
     });
 
-    return { ...participation, participantReview: review };
+    const availableSpots = await this.calculateRemainingSpots(eventId);
+
+    return { ...participation, participantReview: review, availableSpots };
   }
 
   async cancel(eventId: string, userId: string) {
@@ -171,17 +219,18 @@ export class ParticipationsService {
 
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { endAt: true },
+      select: { endAt: true, capacity: true },
     });
     if (event && event.endAt.getTime() <= Date.now()) {
       throw new BadRequestException('Нельзя отменить участие после завершения события');
     }
 
     if (participation.status === 'cancelled') {
-      return participation;
+      const availableSpots = await this.calculateRemainingSpots(eventId, event?.capacity);
+      return { ...participation, availableSpots };
     }
 
-    return this.prisma.participation.update({
+    const updated = await this.prisma.participation.update({
       where: { id: participation.id },
       data: { status: 'cancelled' },
       include: {
@@ -196,6 +245,10 @@ export class ParticipationsService {
         },
       },
     });
+
+    const availableSpots = await this.calculateRemainingSpots(eventId, event?.capacity);
+
+    return { ...updated, availableSpots };
   }
 
   async rateParticipant(eventId: string, ownerId: string, participationId: string, dto: RateParticipantDto) {
@@ -237,11 +290,38 @@ export class ParticipationsService {
         author: {
           select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true },
         },
-        event: { select: { id: true, title: true } },
+        event: { select: { id: true, title: true, startAt: true, endAt: true } },
       },
     });
 
     return review;
+  }
+
+  private async calculateRemainingSpots(eventId: string, capacity?: number | null) {
+    const eventCapacity =
+      capacity ??
+      (await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { capacity: true },
+      }))?.capacity ?? null;
+
+    if (eventCapacity == null) {
+      return null;
+    }
+
+    const approvedCount = await this.prisma.participation.count({
+      where: {
+        eventId,
+        status: { in: Array.from(SEAT_OCCUPYING_STATUSES) },
+      },
+    });
+
+    return Math.max(eventCapacity - approvedCount, 0);
+  }
+
+  private isSeatOccupyingStatus(status?: string | null): status is SeatOccupyingStatus {
+    if (!status) return false;
+    return SEAT_OCCUPYING_STATUSES.includes(status as SeatOccupyingStatus);
   }
 
   private isAdult(birthDate?: Date | null): boolean {

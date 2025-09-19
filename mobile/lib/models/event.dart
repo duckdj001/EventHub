@@ -18,8 +18,10 @@ class Event {
   final String? categoryId;
   final String status;
   final int? capacity;
+  final int? availableSpots;
   final String? ownerId;
   final String? participationStatus;
+  final bool reviewed;
   final EventOwner? owner;
 
   const Event({
@@ -42,8 +44,10 @@ class Event {
     this.coverUrl,
     this.categoryId,
     this.capacity,
+    this.availableSpots,
     this.ownerId,
     this.participationStatus,
+    this.reviewed = false,
     this.owner,
   });
 
@@ -66,8 +70,10 @@ class Event {
     String? categoryId,
     String? status,
     int? capacity,
+    int? availableSpots,
     String? ownerId,
     String? participationStatus,
+    bool? reviewed,
     EventOwner? owner,
   }) {
     return Event(
@@ -90,8 +96,10 @@ class Event {
       categoryId: categoryId ?? this.categoryId,
       status: status ?? this.status,
       capacity: capacity ?? this.capacity,
+      availableSpots: availableSpots ?? this.availableSpots,
       ownerId: ownerId ?? this.ownerId,
       participationStatus: participationStatus ?? this.participationStatus,
+      reviewed: reviewed ?? this.reviewed,
       owner: owner ?? this.owner,
     );
   }
@@ -116,8 +124,10 @@ class Event {
         categoryId: j['categoryId'] as String?,
         status: (j['status'] ?? 'published') as String,
         capacity: (j['capacity'] as num?)?.toInt(),
+        availableSpots: (j['availableSpots'] as num?)?.toInt(),
         ownerId: j['ownerId'] as String?,
         participationStatus: (j['participationStatus'] as String?)?.toLowerCase(),
+        reviewed: j['reviewed'] == true,
         owner: j['owner'] is Map<String, dynamic>
             ? EventOwner.fromJson(j['owner'] as Map<String, dynamic>)
             : null,

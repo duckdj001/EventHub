@@ -23,11 +23,12 @@ export class UsersService {
 
   async profile(userId: string, opts?: { viewerId?: string; includePrivate?: boolean }) {
     const includePrivate = opts?.includePrivate ?? false;
+    const viewerId = opts?.viewerId;
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
-        email: true,
+        email: includePrivate,
         firstName: true,
         lastName: true,
         avatarUrl: true,
@@ -47,7 +48,16 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('Пользователь не найден');
 
-    const [ratingAgg, ratingGroups, upcomingCount, pastCount, participantAgg] = await Promise.all([
+    const [
+      ratingAgg,
+      ratingGroups,
+      upcomingCount,
+      pastCount,
+      participantAgg,
+      followersCount,
+      followingCount,
+      viewerFollow,
+    ] = await Promise.all([
       this.prisma.review.aggregate({
         _avg: { rating: true },
         _count: { rating: true },
@@ -65,6 +75,16 @@ export class UsersService {
         _count: { rating: true },
         where: { target: 'participant', targetUserId: userId },
       }),
+      this.prisma.follow.count({ where: { followeeId: userId } }),
+      this.prisma.follow.count({ where: { followerId: userId } }),
+      viewerId
+        ? this.prisma.follow.findUnique({
+            where: {
+              followerId_followeeId: { followerId: viewerId, followeeId: userId },
+            },
+            select: { id: true },
+          })
+        : null,
     ]);
 
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -76,6 +96,7 @@ export class UsersService {
 
     return {
       ...user,
+      email: includePrivate ? user.email : undefined,
       stats: {
         ratingAvg: ratingAgg._avg.rating ?? 0,
         ratingCount: ratingAgg._count.rating ?? 0,
@@ -85,7 +106,37 @@ export class UsersService {
         participantRatingAvg: participantAgg._avg.rating ?? 0,
         participantRatingCount: participantAgg._count.rating ?? 0,
       },
+      social: {
+        followers: followersCount,
+        following: followingCount,
+        isFollowedByViewer: !!viewerFollow,
+      },
     };
+  }
+
+  async search(query: string, limit = 10) {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const take = Math.min(Math.max(limit, 1), 25);
+    return this.prisma.user.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: trimmed, mode: 'insensitive' } },
+          { lastName: { contains: trimmed, mode: 'insensitive' } },
+          { email: { contains: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      take,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        email: true,
+      },
+    });
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

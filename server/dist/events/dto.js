@@ -85,8 +85,10 @@ __decorate([
     __metadata("design:type", Boolean)
 ], CreateEventDto.prototype, "isAddressHidden", void 0);
 __decorate([
+    (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(48),
     __metadata("design:type", Number)
 ], CreateEventDto.prototype, "capacity", void 0);
 __decorate([

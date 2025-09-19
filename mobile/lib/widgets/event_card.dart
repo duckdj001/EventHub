@@ -2,6 +2,9 @@ import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_theme_extension.dart';
+import '../theme/components/app_surface.dart';
 
 String _fmtRu(DateTime d) {
   try { return DateFormat('d MMM, HH:mm', 'ru_RU').format(d); }
@@ -35,35 +38,38 @@ class EventCard extends StatelessWidget {
     final distance =
         distanceKm != null ? '${distanceKm!.toStringAsFixed(distanceKm! < 10 ? 1 : 0)} км' : null;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final appExt = theme.extension<AppThemeExtension>();
+
+    return AppSurface(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: EdgeInsets.zero,
       child: InkWell(
+        borderRadius: appExt?.panelRadius ?? BorderRadius.circular(24),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.sm),
           child: Row(
             children: [
-              // Обложка
               SizedBox(
-                width: 86,
-                height: 86,
+                width: 96,
+                height: 96,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   child: e.coverUrl != null && e.coverUrl!.isNotEmpty
                       ? Image.network(e.coverUrl!, fit: BoxFit.cover)
                       : Container(
-                          color: const Color(0xFFEFF2F7),
-                          child: const Icon(Icons.image_outlined, size: 28, color: Colors.black38),
+                          color: colorScheme.surfaceVariant,
+                          child: Icon(Icons.image_outlined, size: 32, color: colorScheme.onSurfaceVariant),
                         ),
                 ),
               ),
-              const SizedBox(width: 12),
-              // Текстовая часть
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // верхняя строка: заголовок + цена
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -72,115 +78,103 @@ class EventCard extends StatelessWidget {
                             e.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpacing.xs),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE9F0FF),
-                            borderRadius: BorderRadius.circular(8),
+                            color: colorScheme.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             _priceText,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-
                     if (e.owner != null)
                       GestureDetector(
                         onTap: onOwnerTap,
                         behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: const Color(0xFFEFF2F7),
-                                backgroundImage: (e.owner!.avatarUrl != null && e.owner!.avatarUrl!.isNotEmpty)
-                                    ? NetworkImage(e.owner!.avatarUrl!)
-                                    : null,
-                                child: (e.owner!.avatarUrl == null || e.owner!.avatarUrl!.isEmpty)
-                                    ? Text(
-                                        e.owner!.fullName.isNotEmpty
-                                            ? e.owner!.fullName.characters.first.toUpperCase()
-                                            : 'U',
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
-                                      )
-                                    : null,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: colorScheme.surfaceVariant,
+                              backgroundImage: (e.owner!.avatarUrl != null && e.owner!.avatarUrl!.isNotEmpty)
+                                  ? NetworkImage(e.owner!.avatarUrl!)
+                                  : null,
+                              child: (e.owner!.avatarUrl == null || e.owner!.avatarUrl!.isEmpty)
+                                  ? Text(
+                                      e.owner!.fullName.isNotEmpty
+                                          ? e.owner!.fullName.characters.first.toUpperCase()
+                                          : 'U',
+                                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              e.owner!.fullName.isNotEmpty ? e.owner!.fullName : 'Организатор',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: onOwnerTap != null ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                e.owner!.fullName.isNotEmpty ? e.owner!.fullName : 'Организатор',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: onOwnerTap != null ? Colors.blue : Colors.black54,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-
-                    // локация + расстояние
+                    if (e.owner != null) const SizedBox(height: 6),
                     Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.place_outlined, size: 16, color: Colors.black54),
+                            Icon(Icons.place_outlined, size: 16, color: colorScheme.onSurfaceVariant),
                             const SizedBox(width: 4),
-                            Text(e.city, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                            Text(e.city, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
                           ],
                         ),
                         if (distance != null)
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.near_me_outlined, size: 16, color: Colors.black54),
+                              Icon(Icons.near_me_outlined, size: 16, color: colorScheme.onSurfaceVariant),
                               const SizedBox(width: 4),
-                              Text(distance, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                              Text(distance, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
                             ],
                           ),
                       ],
                     ),
                     const SizedBox(height: 6),
-
-                    // дата
                     Row(
                       children: [
-                        const Icon(Icons.schedule, size: 16, color: Colors.black54),
+                        Icon(Icons.schedule, size: 16, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
-                        Text(
-                          date,
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
-                        ),
+                        Text(date, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
                         if (e.isAdultOnly) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade100,
+                              color: colorScheme.error.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('18+', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w700)),
+                            child: Text('18+',
+                                style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.error, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 6),
-
-                    // короткое описание + бейдж «по подтверждению»
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -189,7 +183,7 @@ class EventCard extends StatelessWidget {
                             e.description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            style: theme.textTheme.bodySmall,
                           ),
                         ),
                         if (e.requiresApproval) ...[
@@ -197,12 +191,12 @@ class EventCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF6EAF1),
-                              borderRadius: BorderRadius.circular(8),
+                              color: colorScheme.secondary.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Text(
+                            child: Text(
                               'По заявке',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.secondary, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],

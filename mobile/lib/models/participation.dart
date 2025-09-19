@@ -40,6 +40,7 @@ class Participation {
   final DateTime? updatedAt;
   final ParticipationUser? user;
   final ParticipantReview? participantReview;
+  final int? availableSpots;
 
   const Participation({
     required this.id,
@@ -50,9 +51,15 @@ class Participation {
     this.updatedAt,
     this.user,
     this.participantReview,
+    this.availableSpots,
   });
 
-  Participation copyWith({String? status, DateTime? updatedAt, ParticipantReview? participantReview}) {
+  Participation copyWith({
+    String? status,
+    DateTime? updatedAt,
+    ParticipantReview? participantReview,
+    int? availableSpots,
+  }) {
     return Participation(
       id: id,
       eventId: eventId,
@@ -62,6 +69,7 @@ class Participation {
       updatedAt: updatedAt ?? this.updatedAt,
       user: user,
       participantReview: participantReview ?? this.participantReview,
+      availableSpots: availableSpots ?? this.availableSpots,
     );
   }
 
@@ -90,6 +98,7 @@ class Participation {
           ? ParticipationUser.fromJson(json['user'] as Map<String, dynamic>)
           : null,
       participantReview: review,
+      availableSpots: (json['availableSpots'] as num?)?.toInt(),
     );
   }
 }
@@ -115,6 +124,7 @@ class ParticipantReview {
 class ParticipationRequestResult {
   final Participation participation;
   final bool autoconfirmed;
+  final int? availableSpots;
 
-  ParticipationRequestResult({required this.participation, required this.autoconfirmed});
+  ParticipationRequestResult({required this.participation, required this.autoconfirmed, this.availableSpots});
 }

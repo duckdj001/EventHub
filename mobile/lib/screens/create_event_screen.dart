@@ -34,6 +34,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _addressCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  final _capacityCtrl = TextEditingController(text: '48');
 
   // state
   DateTime? _startAt;
@@ -73,6 +74,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _addressCtrl.text = e.address ?? '';
     _cityCtrl.text = e.city;
     _priceCtrl.text = e.price?.toString() ?? '';
+    _capacityCtrl.text = e.capacity?.toString() ?? '48';
     _startAt = e.startAt;
     _endAt = e.endAt;
     _isPaid = e.isPaid;
@@ -159,6 +161,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       return;
     }
 
+    final capacity = int.tryParse(_capacityCtrl.text.trim());
+    if (capacity == null || capacity < 1 || capacity > 48) {
+      _toast('Количество участников должно быть от 1 до 48');
+      return;
+    }
+
     setState(() => _busy = true);
     try {
       // 1) upload cover if changed
@@ -182,6 +190,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         'lat': _lat,
         'lon': _lon,
         'coverUrl': coverUrl,
+        'capacity': capacity,
         'isPaid': _isPaid,
         'price': _isPaid && _priceCtrl.text.isNotEmpty
             ? int.tryParse(_priceCtrl.text)
@@ -215,6 +224,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _addressCtrl.dispose();
     _cityCtrl.dispose();
     _priceCtrl.dispose();
+    _capacityCtrl.dispose();
     super.dispose();
   }
 
@@ -312,6 +322,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               subtitle: Text(_fmtDate(_endAt)),
               trailing: const Icon(Icons.calendar_today),
               onTap: () => _pickDateTime(start: false),
+            ),
+            const SizedBox(height: 8),
+
+            TextFormField(
+              controller: _capacityCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Количество участников (до 48)'),
+              validator: (v) {
+                final parsed = int.tryParse((v ?? '').trim());
+                if (parsed == null || parsed < 1) return 'Укажите число больше 0';
+                if (parsed > 48) return 'Максимум 48 участников';
+                return null;
+              },
             ),
             const SizedBox(height: 8),
 

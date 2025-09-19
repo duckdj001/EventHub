@@ -17,6 +17,8 @@ const users_module_1 = require("./users/users.module");
 const geo_module_1 = require("./geo/geo.module");
 const participations_module_1 = require("./participations/participations.module");
 const categories_module_1 = require("./categories/categories.module");
+const follows_module_1 = require("./follows/follows.module");
+const notifications_module_1 = require("./notifications/notifications.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -30,6 +32,8 @@ exports.AppModule = AppModule = __decorate([
             geo_module_1.GeoModule,
             participations_module_1.ParticipationsModule,
             categories_module_1.CategoriesModule,
+            follows_module_1.FollowsModule,
+            notifications_module_1.NotificationsModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: jwt_guard_1.JwtAuthGuard },

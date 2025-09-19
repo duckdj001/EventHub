@@ -5,6 +5,7 @@ export declare class RegisterDto {
     password: string;
     birthDate: string;
     avatarUrl: string;
+    acceptedTerms?: boolean;
 }
 export declare class LoginDto {
     email: string;

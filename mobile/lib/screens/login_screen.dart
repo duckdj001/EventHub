@@ -8,6 +8,28 @@ import 'package:image_picker/image_picker.dart';
 import '../services/auth_store.dart';
 import '../services/upload_service.dart';
 import '../widgets/auth_scope.dart';
+import '../theme/components/components.dart';
+import '../theme/app_spacing.dart';
+
+const String _termsText = '''
+1. Общие положения
+1.1. Настоящее пользовательское соглашение (далее — "Соглашение") регулирует порядок использования сервиса Vibe и заключено в соответствии с требованиями законодательства Российской Федерации, в том числе Гражданского кодекса РФ, Федерального закона от 27.07.2006 № 149-ФЗ "Об информации, информационных технологиях и о защите информации" и Федерального закона от 27.07.2006 № 152-ФЗ "О персональных данных".
+1.2. Регистрируясь в приложении, пользователь подтверждает, что достиг возраста 18 лет, ознакомился с условиями Соглашения и обязуется их соблюдать.
+
+2. Персональные данные
+2.1. Предоставляя свои персональные данные, пользователь подтверждает согласие на их обработку организатором сервиса в целях регистрации, идентификации, предоставления функционала приложения, рассылки уведомлений, а также исполнения требований законодательства РФ.
+2.2. Обработка персональных данных осуществляется с соблюдением принципов и требований Федерального закона № 152-ФЗ, в том числе с использованием средств автоматизации. Пользователь вправе в любой момент отозвать согласие на обработку персональных данных, направив письменное уведомление на адрес электронной почты службы поддержки Vibe.
+
+3. Использование сервиса
+3.1. Пользователь обязуется:
+    • предоставлять достоверные сведения при регистрации и при создании мероприятий;
+    • не размещать материалы, нарушающие законодательство РФ, права и законные интересы третьих лиц;
+    • самостоятельно отвечать за сохранность учётных данных.
+3.2. Организатор сервиса вправе ограничить или прекратить доступ пользователя к приложению при нарушении условий Соглашения или требований законодательства РФ.
+
+4. Заключительные положения
+4.1. Организатор сервиса вправе вносить изменения в Соглашение в одностороннем порядке, публикуя обновлённую редакцию в приложении. Продолжение использования сервиса после изменения условий означает согласие пользователя с новой редакцией.
+4.2. По вопросам, связанным с исполнением Соглашения и обработкой персональных данных, пользователь может обратиться в службу поддержки Vibe по адресу support@vibe.example.''';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _loginEmail = TextEditingController();
   final _loginPass = TextEditingController();
   bool _loginBusy = false;
+  bool _loginPasswordVisible = false;
 
   // ------- Регистрация -------
   final _regForm = GlobalKey<FormState>();
@@ -40,11 +63,14 @@ class _LoginScreenState extends State<LoginScreen>
   File? _avatarFile;
   String? _avatarUrl;
   bool _regBusy = false;
+  bool _regAcceptedTerms = false;
+  bool _regPasswordVisible = false;
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    _tab.addListener(_handleTabChange);
     uploader = UploadService();
   }
 
@@ -56,6 +82,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    _tab.removeListener(_handleTabChange);
     _tab.dispose();
 
     _loginEmail.dispose();
@@ -66,6 +93,11 @@ class _LoginScreenState extends State<LoginScreen>
     _regEmail.dispose();
     _regPass.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _toast(String m) =>
@@ -81,10 +113,25 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       context.go('/'); // на главную
     } catch (e) {
-      _toast('Ошибка входа: $e');
+      await _showLoginErrorDialog();
     } finally {
       if (mounted) setState(() => _loginBusy = false);
     }
+  }
+
+  Future<void> _showLoginErrorDialog() async {
+    if (!mounted) return;
+    const message = 'Неверный e-mail или пароль. Проверьте введённые данные и попробуйте ещё раз.';
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ошибка входа'),
+        content: Text(message.isNotEmpty ? message : 'Неверный логин или пароль.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Ок')),
+        ],
+      ),
+    );
   }
 
   // ================ VERIFY SHEET (6 цифр) ================
@@ -238,6 +285,10 @@ class _LoginScreenState extends State<LoginScreen>
       _toast('Укажите дату рождения');
       return;
     }
+    if (!_regAcceptedTerms) {
+      _toast('Подтвердите согласие с пользовательским соглашением');
+      return;
+    }
 
     setState(() => _regBusy = true);
     try {
@@ -259,6 +310,7 @@ class _LoginScreenState extends State<LoginScreen>
         'password': _regPass.text,
         'birthDate': birthIso,
         'avatarUrl': avatarUrl,
+        'acceptedTerms': _regAcceptedTerms,
       };
 
       final auth = _auth ?? AuthScope.of(context);
@@ -274,163 +326,429 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // ================== UI ===================
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('EventHub'),
-        bottom: TabBar(
-          controller: _tab,
-          tabs: const [
-            Tab(text: 'Вход'),
-            Tab(text: 'Регистрация'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tab,
-        children: [
-          // -------- ВХОД --------
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _loginForm,
+  void _openTerms() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.9,
+          minChildSize: 0.6,
+          builder: (_, controller) {
+            return Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: _loginEmail,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'E-mail'),
-                    validator: (v) => v != null && v.contains('@')
-                        ? null
-                        : 'Введите корректный e-mail',
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _loginPass,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Пароль'),
-                    validator: (v) => v != null && v.length >= 6
-                        ? null
-                        : 'Мин. 6 символов',
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: _loginBusy ? null : _login,
-                    child: _loginBusy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Войти'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ------ РЕГИСТРАЦИЯ ------
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _regForm,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // аватар
-                  Center(
-                    child: InkWell(
-                      onTap: _pickAvatar,
-                      borderRadius: BorderRadius.circular(48),
-                      child: CircleAvatar(
-                        radius: 48,
-                        backgroundImage:
-                            _avatarFile != null ? FileImage(_avatarFile!) : null,
-                        child: _avatarFile == null
-                            ? const Icon(Icons.add_a_photo_outlined, size: 28)
-                            : null,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          controller: _firstName,
-                          decoration: const InputDecoration(labelText: 'Имя'),
-                          validator: (v) => v != null && v.trim().isNotEmpty
-                              ? null
-                              : 'Укажите имя',
+                        child: Text(
+                          'Пользовательское соглашение',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _lastName,
-                          decoration: const InputDecoration(labelText: 'Фамилия'),
-                          validator: (v) => v != null && v.trim().isNotEmpty
-                              ? null
-                              : 'Укажите фамилию',
-                        ),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Закрыть',
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-
-                  TextFormField(
-                    controller: _regEmail,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'E-mail'),
-                    validator: (v) => v != null && v.contains('@')
-                        ? null
-                        : 'Введите корректный e-mail',
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextFormField(
-                    controller: _regPass,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Пароль (мин. 6)'),
-                    validator: (v) => v != null && v.length >= 6
-                        ? null
-                        : 'Мин. 6 символов',
-                  ),
-                  const SizedBox(height: 12),
-
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Дата рождения'),
-                    subtitle: Text(_birthDate == null
-                        ? 'Выбрать'
-                        : '${_birthDate!.day.toString().padLeft(2, '0')}.'
-                            '${_birthDate!.month.toString().padLeft(2, '0')}.'
-                            '${_birthDate!.year}'),
-                    trailing: const Icon(Icons.event_outlined),
-                    onTap: _pickBirthDate,
-                  ),
-                  const SizedBox(height: 16),
-
-                  FilledButton(
-                    onPressed: _regBusy ? null : _register,
-                    child: _regBusy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Зарегистрироваться'),
+                  const SizedBox(height: AppSpacing.sm),
+                  Expanded(
+                    child: SelectionArea(
+                      child: ListView(
+                        controller: controller,
+                        children: [
+                          Text(
+                            _termsText,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ================== UI ===================
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLogin = _tab.index == 0;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF101217), Color(0xFF131821), Color(0xFF161E28)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Vibe',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Планируйте и посещайте события в один клик',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withOpacity(0.72),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    AppSurface(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildSegmentedToggle(theme),
+                          const SizedBox(height: 24),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeInOut,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              switchInCurve: Curves.easeOut,
+                              switchOutCurve: Curves.easeIn,
+                              child: isLogin
+                                  ? _buildLoginForm(context)
+                                  : _buildRegisterForm(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentedToggle(ThemeData theme) {
+    final isLogin = _tab.index == 0;
+    final baseColor = theme.colorScheme.surfaceVariant.withOpacity(
+      theme.brightness == Brightness.dark ? 0.25 : 0.4,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: baseColor,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          _buildToggleButton(theme, 'Вход', 0, isLogin),
+          _buildToggleButton(theme, 'Регистрация', 1, !isLogin),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton(ThemeData theme, String title, int index, bool active) {
+    final colorScheme = theme.colorScheme;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _tab.animateTo(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: active ? colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: active
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginForm(BuildContext context) {
+    return Form(
+      key: _loginForm,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            controller: _loginEmail,
+            keyboardType: TextInputType.emailAddress,
+            label: 'E-mail',
+            prefixIcon: Icons.mail_outline,
+            validator: (v) => v != null && v.contains('@')
+                ? null
+                : 'Введите корректный e-mail',
+          ),
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _loginPass,
+            obscureText: !_loginPasswordVisible,
+            label: 'Пароль',
+            prefixIcon: Icons.lock_outline,
+            suffix: IconButton(
+              icon: Icon(_loginPasswordVisible ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _loginPasswordVisible = !_loginPasswordVisible),
+            ),
+            validator: (v) => v != null && v.length >= 6
+                ? null
+                : 'Мин. 6 символов',
+          ),
+          const SizedBox(height: 24),
+          AppButton.primary(
+            onPressed: _loginBusy ? null : _login,
+            label: 'Войти',
+            busy: _loginBusy,
           ),
         ],
       ),
     );
   }
+
+  Widget _buildRegisterForm(BuildContext context) {
+    final theme = Theme.of(context);
+
+    ImageProvider? avatar;
+    if (_avatarFile != null) {
+      avatar = FileImage(_avatarFile!);
+    } else if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      avatar = NetworkImage(_avatarUrl!);
+    }
+
+    return Form(
+      key: _regForm,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: theme.colorScheme.surfaceVariant.withOpacity(
+              theme.brightness == Brightness.dark ? 0.25 : 0.4,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              onTap: _regBusy ? null : _pickAvatar,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                      backgroundImage: avatar,
+                      child: avatar == null
+                          ? const Icon(Icons.add_a_photo_outlined, size: 22)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            avatar == null
+                                ? 'Добавьте фото профиля'
+                                : 'Фото обновлено',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'JPG или PNG до 5 МБ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: _firstName,
+                  label: 'Имя',
+                  prefixIcon: Icons.person_outline,
+                  validator: (v) => v != null && v.trim().isNotEmpty
+                      ? null
+                      : 'Укажите имя',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AppTextField(
+                  controller: _lastName,
+                  label: 'Фамилия',
+                  validator: (v) => v != null && v.trim().isNotEmpty
+                      ? null
+                      : 'Укажите фамилию',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _regEmail,
+            keyboardType: TextInputType.emailAddress,
+            label: 'E-mail',
+            prefixIcon: Icons.mail_outline,
+            validator: (v) => v != null && v.contains('@')
+                ? null
+                : 'Введите корректный e-mail',
+          ),
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _regPass,
+            obscureText: !_regPasswordVisible,
+            label: 'Пароль (мин. 6)',
+            prefixIcon: Icons.lock_outline,
+            suffix: IconButton(
+              icon: Icon(_regPasswordVisible ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _regPasswordVisible = !_regPasswordVisible),
+            ),
+            validator: (v) => v != null && v.length >= 6
+                ? null
+                : 'Мин. 6 символов',
+          ),
+          const SizedBox(height: 16),
+          Material(
+            color: theme.colorScheme.surfaceVariant.withOpacity(
+              theme.brightness == Brightness.dark ? 0.2 : 0.32,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: _regBusy ? null : _pickBirthDate,
+              borderRadius: BorderRadius.circular(18),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.event_outlined, color: theme.colorScheme.primary),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Дата рождения',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _birthDate == null
+                                ? 'Выберите дату'
+                                : '${_birthDate!.day.toString().padLeft(2, '0')}.'
+                                    '${_birthDate!.month.toString().padLeft(2, '0')}.'
+                                    '${_birthDate!.year}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _regAcceptedTerms,
+                onChanged: (value) => setState(() => _regAcceptedTerms = value ?? false),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Я принимаю пользовательское соглашение',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    TextButton(
+                      onPressed: _openTerms,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        alignment: Alignment.centerLeft,
+                      ),
+                      child: const Text('Открыть условия'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          AppButton.primary(
+            onPressed: _regBusy ? null : _register,
+            label: 'Создать аккаунт',
+            busy: _regBusy,
+          ),
+        ],
+      ),
+    );
+  }
+
 }

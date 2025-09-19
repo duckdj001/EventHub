@@ -64,11 +64,12 @@ let UsersService = class UsersService {
     async profile(userId, opts) {
         var _a, _b, _c, _d, _e;
         const includePrivate = (_a = opts === null || opts === void 0 ? void 0 : opts.includePrivate) !== null && _a !== void 0 ? _a : false;
+        const viewerId = opts === null || opts === void 0 ? void 0 : opts.viewerId;
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             select: {
                 id: true,
-                email: true,
+                email: includePrivate,
                 firstName: true,
                 lastName: true,
                 avatarUrl: true,
@@ -88,7 +89,7 @@ let UsersService = class UsersService {
         });
         if (!user)
             throw new common_1.NotFoundException('Пользователь не найден');
-        const [ratingAgg, ratingGroups, upcomingCount, pastCount, participantAgg] = await Promise.all([
+        const [ratingAgg, ratingGroups, upcomingCount, pastCount, participantAgg, followersCount, followingCount, viewerFollow,] = await Promise.all([
             this.prisma.review.aggregate({
                 _avg: { rating: true },
                 _count: { rating: true },
@@ -106,6 +107,16 @@ let UsersService = class UsersService {
                 _count: { rating: true },
                 where: { target: 'participant', targetUserId: userId },
             }),
+            this.prisma.follow.count({ where: { followeeId: userId } }),
+            this.prisma.follow.count({ where: { followerId: userId } }),
+            viewerId
+                ? this.prisma.follow.findUnique({
+                    where: {
+                        followerId_followeeId: { followerId: viewerId, followeeId: userId },
+                    },
+                    select: { id: true },
+                })
+                : null,
         ]);
         const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
         ratingGroups.forEach((g) => {
@@ -115,6 +126,7 @@ let UsersService = class UsersService {
         });
         return {
             ...user,
+            email: includePrivate ? user.email : undefined,
             stats: {
                 ratingAvg: (_b = ratingAgg._avg.rating) !== null && _b !== void 0 ? _b : 0,
                 ratingCount: (_c = ratingAgg._count.rating) !== null && _c !== void 0 ? _c : 0,
@@ -124,7 +136,36 @@ let UsersService = class UsersService {
                 participantRatingAvg: (_d = participantAgg._avg.rating) !== null && _d !== void 0 ? _d : 0,
                 participantRatingCount: (_e = participantAgg._count.rating) !== null && _e !== void 0 ? _e : 0,
             },
+            social: {
+                followers: followersCount,
+                following: followingCount,
+                isFollowedByViewer: !!viewerFollow,
+            },
         };
+    }
+    async search(query, limit = 10) {
+        const trimmed = query.trim();
+        if (!trimmed)
+            return [];
+        const take = Math.min(Math.max(limit, 1), 25);
+        return this.prisma.user.findMany({
+            where: {
+                OR: [
+                    { firstName: { contains: trimmed, mode: 'insensitive' } },
+                    { lastName: { contains: trimmed, mode: 'insensitive' } },
+                    { email: { contains: trimmed, mode: 'insensitive' } },
+                ],
+            },
+            take,
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+                email: true,
+            },
+        });
     }
     async updateProfile(userId, dto) {
         const data = {};

@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VerifyEmailDto = exports.LoginDto = exports.RegisterDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class RegisterDto {
 }
@@ -41,6 +42,30 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "avatarUrl", void 0);
+__decorate([
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (typeof value === 'boolean')
+            return value;
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (['true', '1', 'yes', 'on'].includes(normalized))
+                return true;
+            if (['false', '0', 'no', 'off'].includes(normalized))
+                return false;
+        }
+        if (typeof value === 'number') {
+            if (value === 1)
+                return true;
+            if (value === 0)
+                return false;
+            return Boolean(value);
+        }
+        return undefined;
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], RegisterDto.prototype, "acceptedTerms", void 0);
 class LoginDto {
 }
 exports.LoginDto = LoginDto;

@@ -1,4 +1,4 @@
-import 'package:eventhub/services/api_client.dart';
+import 'package:vibe/services/api_client.dart';
 
 class CatalogService {
   final api = ApiClient('http://localhost:3000');

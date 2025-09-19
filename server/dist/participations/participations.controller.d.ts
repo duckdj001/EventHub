@@ -5,6 +5,7 @@ export declare class ParticipationsController {
     constructor(participations: ParticipationsService);
     request(eventId: string, req: any): Promise<{
         autoconfirmed: boolean;
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -50,6 +51,7 @@ export declare class ParticipationsController {
             rating: number;
             text: string | null;
         } | null;
+        availableSpots: number | null;
         id: string;
         eventId: string;
         userId: string;
@@ -57,6 +59,7 @@ export declare class ParticipationsController {
         createdAt: Date;
     } | null>;
     cancel(eventId: string, req: any): Promise<{
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -64,7 +67,6 @@ export declare class ParticipationsController {
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         eventId: string;
         userId: string;
@@ -72,6 +74,7 @@ export declare class ParticipationsController {
         createdAt: Date;
     }>;
     setStatus(eventId: string, participationId: string, status: 'approved' | 'rejected' | 'cancelled', req: any): Promise<{
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -79,7 +82,6 @@ export declare class ParticipationsController {
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         eventId: string;
         userId: string;
@@ -90,6 +92,8 @@ export declare class ParticipationsController {
         event: {
             id: string;
             title: string;
+            startAt: Date;
+            endAt: Date;
         };
         author: {
             id: string;

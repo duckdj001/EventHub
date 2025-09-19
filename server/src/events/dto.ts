@@ -22,7 +22,11 @@ export class CreateEventDto {
   @IsOptional() lat?: number;
   @IsOptional() lon?: number;
   @IsBoolean() @IsOptional() isAddressHidden?: boolean;
-  @IsInt() @IsOptional() capacity?: number;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(48)
+  capacity!: number;
   @IsString() @IsOptional() coverUrl?: string;
 }
 

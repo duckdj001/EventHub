@@ -6,6 +6,7 @@ export declare class ParticipationsService {
     private getEventOrThrow;
     request(eventId: string, userId: string): Promise<{
         autoconfirmed: boolean;
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -41,6 +42,7 @@ export declare class ParticipationsService {
         createdAt: Date;
     }[]>;
     changeStatus(eventId: string, ownerId: string, participationId: string, status: 'approved' | 'rejected' | 'cancelled'): Promise<{
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -48,7 +50,6 @@ export declare class ParticipationsService {
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         eventId: string;
         userId: string;
@@ -66,6 +67,7 @@ export declare class ParticipationsService {
             rating: number;
             text: string | null;
         } | null;
+        availableSpots: number | null;
         id: string;
         eventId: string;
         userId: string;
@@ -73,6 +75,7 @@ export declare class ParticipationsService {
         createdAt: Date;
     } | null>;
     cancel(eventId: string, userId: string): Promise<{
+        availableSpots: number | null;
         user: {
             id: string;
             email: string;
@@ -80,7 +83,6 @@ export declare class ParticipationsService {
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         eventId: string;
         userId: string;
@@ -91,6 +93,8 @@ export declare class ParticipationsService {
         event: {
             id: string;
             title: string;
+            startAt: Date;
+            endAt: Date;
         };
         author: {
             id: string;
@@ -109,5 +113,7 @@ export declare class ParticipationsService {
         rating: number;
         text: string | null;
     }>;
+    private calculateRemainingSpots;
+    private isSeatOccupyingStatus;
     private isAdult;
 }

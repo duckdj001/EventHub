@@ -18,7 +18,10 @@ list(
   @Query('isPaid') isPaidStr?: string,
   @Query('owner') owner?: string,
   @Query('excludeMine') excludeMineStr?: string,
-  @Req() req?: any
+  @Query('timeframe') timeframe?: 'this-week' | 'next-week' | 'this-month',
+  @Query('startDate') startDate?: string,
+  @Query('endDate') endDate?: string,
+  @Req() req?: any,
 ) {
   const lat = latStr ? Number(latStr) : undefined;
   const lon = lonStr ? Number(lonStr) : undefined;
@@ -27,7 +30,22 @@ list(
   const ownerId = owner === 'me' ? req?.user?.sub : undefined;
   const viewerId = req?.user?.sub;
   const excludeMine = excludeMineStr === 'true';
-  return this.events.list({ city, categoryId, lat, lon, radiusKm, isPaid, ownerId, excludeMine }, { viewerId });
+  return this.events.list(
+    {
+      city,
+      categoryId,
+      lat,
+      lon,
+      radiusKm,
+      isPaid,
+      ownerId,
+      excludeMine,
+      timeframe,
+      startDate,
+      endDate,
+    },
+    { viewerId },
+  );
 }
 
   @UseGuards(JwtAuthGuard)

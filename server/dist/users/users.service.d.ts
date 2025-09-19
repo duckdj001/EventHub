@@ -6,6 +6,7 @@ export declare class UsersService {
     private mail;
     constructor(prisma: PrismaService, mail: MailService);
     me(userId: string): Promise<{
+        email: string | undefined;
         stats: {
             ratingAvg: number;
             ratingCount: number;
@@ -15,8 +16,12 @@ export declare class UsersService {
             participantRatingAvg: number;
             participantRatingCount: number;
         };
+        social: {
+            followers: number;
+            following: number;
+            isFollowedByViewer: boolean;
+        };
         id: string;
-        email: string;
         pendingEmail: string | null;
         firstName: string;
         lastName: string;
@@ -35,6 +40,7 @@ export declare class UsersService {
         viewerId?: string;
         includePrivate?: boolean;
     }): Promise<{
+        email: string | undefined;
         stats: {
             ratingAvg: number;
             ratingCount: number;
@@ -44,8 +50,12 @@ export declare class UsersService {
             participantRatingAvg: number;
             participantRatingCount: number;
         };
+        social: {
+            followers: number;
+            following: number;
+            isFollowedByViewer: boolean;
+        };
         id: string;
-        email: string;
         pendingEmail: string | null;
         firstName: string;
         lastName: string;
@@ -60,7 +70,15 @@ export declare class UsersService {
             bio: string | null;
         } | null;
     }>;
+    search(query: string, limit?: number): Promise<{
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        avatarUrl: string | null;
+    }[]>;
     updateProfile(userId: string, dto: UpdateProfileDto): Promise<{
+        email: string | undefined;
         stats: {
             ratingAvg: number;
             ratingCount: number;
@@ -70,8 +88,12 @@ export declare class UsersService {
             participantRatingAvg: number;
             participantRatingCount: number;
         };
+        social: {
+            followers: number;
+            following: number;
+            isFollowedByViewer: boolean;
+        };
         id: string;
-        email: string;
         pendingEmail: string | null;
         firstName: string;
         lastName: string;

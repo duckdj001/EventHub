@@ -11,7 +11,11 @@ class ParticipationService {
     final data = res as Map<String, dynamic>;
     final participation = Participation.fromJson(data);
     final autoconfirmed = (data['autoconfirmed'] as bool?) ?? false;
-    return ParticipationRequestResult(participation: participation, autoconfirmed: autoconfirmed);
+    return ParticipationRequestResult(
+      participation: participation,
+      autoconfirmed: autoconfirmed,
+      availableSpots: participation.availableSpots ?? (data['availableSpots'] as num?)?.toInt(),
+    );
   }
 
   Future<Participation?> myStatus(String eventId) async {

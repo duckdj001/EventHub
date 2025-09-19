@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EventsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../common/prisma.service");
+const notifications_service_1 = require("../notifications/notifications.service");
 const CATEGORY_TITLES = {
     'default-category': 'Встречи',
     music: 'Музыка',
@@ -32,6 +33,7 @@ const OWNER_SELECT = {
     lastName: true,
     avatarUrl: true,
 };
+const CAPACITY_OCCUPYING_STATUSES = ['approved', 'attended'];
 function haversineKm(a, b) {
     const toRad = (x) => x * Math.PI / 180;
     const R = 6371;
@@ -41,12 +43,40 @@ function haversineKm(a, b) {
     return 2 * R * Math.asin(Math.sqrt(s1));
 }
 let EventsService = class EventsService {
-    constructor(prisma) {
+    constructor(prisma, notifications) {
         this.prisma = prisma;
+        this.notifications = notifications;
+    }
+    async computeAvailability(events) {
+        var _a;
+        const availability = new Map();
+        if (events.length === 0) {
+            return availability;
+        }
+        const counts = await this.prisma.participation.groupBy({
+            by: ['eventId'],
+            where: {
+                eventId: { in: events.map((event) => event.id) },
+                status: { in: Array.from(CAPACITY_OCCUPYING_STATUSES) },
+            },
+            _count: { _all: true },
+        });
+        const countMap = new Map(counts.map((c) => { var _a, _b; return [c.eventId, (_b = (typeof c._count === 'number' ? c._count : (_a = c._count) === null || _a === void 0 ? void 0 : _a._all)) !== null && _b !== void 0 ? _b : 0]; }));
+        for (const event of events) {
+            if (event.capacity == null) {
+                availability.set(event.id, null);
+            }
+            else {
+                const taken = (_a = countMap.get(event.id)) !== null && _a !== void 0 ? _a : 0;
+                availability.set(event.id, Math.max(event.capacity - taken, 0));
+            }
+        }
+        return availability;
     }
     async list(params, options = {}) {
+        var _a;
         await this.archiveExpiredEvents();
-        const { city, categoryId, lat, lon, radiusKm = 50, isPaid, ownerId, excludeMine } = params;
+        const { city, categoryId, lat, lon, radiusKm = 50, isPaid, ownerId, excludeMine, timeframe, startDate, endDate, } = params;
         const { viewerId } = options;
         let viewerIsAdult = true;
         if (!ownerId && viewerId) {
@@ -79,40 +109,51 @@ let EventsService = class EventsService {
         if (!ownerId) {
             where.endAt = { gte: new Date() };
         }
-        if (lat != null && lon != null) {
-            return this.prisma.event
-                .findMany({
-                where: {
+        if (startDate || endDate || timeframe) {
+            const range = startDate || endDate ? this.resolveCustomRange(startDate, endDate) : this.resolveTimeframe(timeframe);
+            if (range) {
+                where.startAt = {
+                    ...((_a = where.startAt) !== null && _a !== void 0 ? _a : {}),
+                    gte: range.start,
+                    lt: range.end,
+                };
+            }
+        }
+        const events = await this.prisma.event.findMany({
+            where: lat != null && lon != null
+                ? {
                     ...where,
                     lat: { not: null },
                     lon: { not: null },
                     endAt: { gte: new Date() },
-                },
-                orderBy: { startAt: 'asc' },
-                include: {
-                    owner: { select: OWNER_SELECT },
-                },
-            })
-                .then(list => {
-                const withD = list
-                    .map(e => ({
-                    ...e,
-                    distanceKm: haversineKm({ lat, lon }, { lat: e.lat, lon: e.lon }),
-                }))
-                    .filter(e => e.distanceKm <= radiusKm)
-                    .sort((a, b) => a.distanceKm - b.distanceKm);
-                return withD;
-            });
-        }
-        return this.prisma.event.findMany({
-            where,
+                }
+                : where,
             orderBy: { startAt: 'asc' },
             include: {
                 owner: { select: OWNER_SELECT },
             },
         });
+        const availabilityMap = await this.computeAvailability(events);
+        const withAvailability = events.map((event) => {
+            var _a;
+            return ({
+                ...event,
+                availableSpots: (_a = availabilityMap.get(event.id)) !== null && _a !== void 0 ? _a : null,
+            });
+        });
+        if (lat != null && lon != null) {
+            return withAvailability
+                .map((event) => ({
+                ...event,
+                distanceKm: haversineKm({ lat, lon }, { lat: event.lat, lon: event.lon }),
+            }))
+                .filter((event) => event.distanceKm <= radiusKm)
+                .sort((a, b) => a.distanceKm - b.distanceKm);
+        }
+        return withAvailability;
     }
     async getOne(id, currentUserId) {
+        var _a;
         const e = await this.prisma.event.findUnique({
             where: { id },
             include: {
@@ -123,6 +164,8 @@ let EventsService = class EventsService {
         });
         if (!e)
             return null;
+        const availabilityMap = await this.computeAvailability([e]);
+        let result = { ...e, availableSpots: (_a = availabilityMap.get(e.id)) !== null && _a !== void 0 ? _a : null };
         if (e.isAdultOnly && currentUserId && e.ownerId !== currentUserId) {
             const viewer = await this.prisma.user.findUnique({
                 where: { id: currentUserId },
@@ -143,10 +186,10 @@ let EventsService = class EventsService {
                 approved = (part === null || part === void 0 ? void 0 : part.status) === 'approved' || (part === null || part === void 0 ? void 0 : part.status) === 'attended';
             }
             if (!isOwner && !approved) {
-                return { ...e, address: null, lat: null, lon: null, isAddressHidden: true };
+                result = { ...result, address: null, lat: null, lon: null, isAddressHidden: true };
             }
         }
-        return e;
+        return result;
     }
     async setStatus(id, status, userId) {
         const e = await this.prisma.event.findUnique({ where: { id } });
@@ -161,11 +204,23 @@ let EventsService = class EventsService {
         return this.prisma.event.delete({ where: { id } });
     }
     async create(ownerId, dto) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
+        if (dto.capacity == null || Number.isNaN(dto.capacity)) {
+            throw new common_1.BadRequestException('Укажите количество участников (до 48).');
+        }
+        if (dto.capacity > 48 || dto.capacity < 1) {
+            throw new common_1.BadRequestException('Максимальное количество участников — 48.');
+        }
         const start = new Date(dto.startAt);
         const end = new Date(dto.endAt);
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
             throw new common_1.BadRequestException('Invalid startAt/endAt; must be ISO-8601');
+        }
+        if (dto.capacity == null || Number.isNaN(dto.capacity)) {
+            throw new common_1.BadRequestException('Укажите количество участников (до 48).');
+        }
+        if (dto.capacity > 48 || dto.capacity < 1) {
+            throw new common_1.BadRequestException('Максимальное количество участников — 48.');
         }
         let categoryId = (_a = dto.categoryId) === null || _a === void 0 ? void 0 : _a.trim();
         if (categoryId) {
@@ -184,7 +239,7 @@ let EventsService = class EventsService {
             });
             categoryId = cat.id;
         }
-        return this.prisma.event.create({
+        const event = await this.prisma.event.create({
             data: {
                 ownerId,
                 title: dto.title,
@@ -200,13 +255,15 @@ let EventsService = class EventsService {
                 address: (_e = dto.address) !== null && _e !== void 0 ? _e : null,
                 lat: (_f = dto.lat) !== null && _f !== void 0 ? _f : null, lon: (_g = dto.lon) !== null && _g !== void 0 ? _g : null,
                 isAddressHidden: !!dto.isAddressHidden,
-                capacity: (_h = dto.capacity) !== null && _h !== void 0 ? _h : null,
-                coverUrl: (_j = dto.coverUrl) !== null && _j !== void 0 ? _j : null,
+                capacity: dto.capacity,
+                coverUrl: (_h = dto.coverUrl) !== null && _h !== void 0 ? _h : null,
             },
         });
+        await this.notifications.notifyFollowersAboutNewEvent(event.id);
+        return event;
     }
     async update(id, ownerId, dto) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
         const existing = await this.prisma.event.findUnique({ where: { id } });
         if (!existing || existing.ownerId !== ownerId) {
             throw new common_1.ForbiddenException();
@@ -247,8 +304,8 @@ let EventsService = class EventsService {
                 lat: (_g = dto.lat) !== null && _g !== void 0 ? _g : null,
                 lon: (_h = dto.lon) !== null && _h !== void 0 ? _h : null,
                 isAddressHidden: !!dto.isAddressHidden,
-                capacity: (_j = dto.capacity) !== null && _j !== void 0 ? _j : null,
-                coverUrl: (_k = dto.coverUrl) !== null && _k !== void 0 ? _k : null,
+                capacity: dto.capacity,
+                coverUrl: (_j = dto.coverUrl) !== null && _j !== void 0 ? _j : null,
             },
         });
     }
@@ -259,7 +316,7 @@ let EventsService = class EventsService {
                 parts: {
                     some: {
                         userId,
-                        status: { in: ['approved', 'requested'] },
+                        status: { in: ['approved', 'attended', 'requested'] },
                     },
                 },
             },
@@ -272,11 +329,25 @@ let EventsService = class EventsService {
                 owner: { select: OWNER_SELECT },
             },
         });
+        if (events.length === 0)
+            return [];
+        const availabilityMap = await this.computeAvailability(events);
+        const reviewed = await this.prisma.review.findMany({
+            where: {
+                authorId: userId,
+                target: 'event',
+                eventId: { in: events.map((e) => e.id) },
+            },
+            select: { eventId: true },
+        });
+        const reviewedSet = new Set(reviewed.map((r) => r.eventId));
         return events.map(({ parts, ...rest }) => {
-            var _a, _b;
+            var _a, _b, _c;
             return ({
                 ...rest,
                 participationStatus: (_b = (_a = parts[0]) === null || _a === void 0 ? void 0 : _a.status) !== null && _b !== void 0 ? _b : null,
+                reviewed: reviewedSet.has(rest.id),
+                availableSpots: (_c = availabilityMap.get(rest.id)) !== null && _c !== void 0 ? _c : null,
             });
         });
     }
@@ -300,8 +371,8 @@ let EventsService = class EventsService {
         if (!participation || participation.status !== 'approved') {
             throw new common_1.ForbiddenException('Оценка доступна только участникам события');
         }
-        const existing = await this.prisma.review.findUnique({
-            where: { eventId_authorId_target: { eventId, authorId, target: 'event' } },
+        const existing = await this.prisma.review.findFirst({
+            where: { eventId, authorId, target: 'event' },
         });
         if (existing) {
             throw new common_1.BadRequestException('Вы уже оставили отзыв для этого события');
@@ -342,8 +413,8 @@ let EventsService = class EventsService {
         });
     }
     async myReview(eventId, userId) {
-        return this.prisma.review.findUnique({
-            where: { eventId_authorId_target: { eventId, authorId: userId, target: 'event' } },
+        return this.prisma.review.findFirst({
+            where: { eventId, authorId: userId, target: 'event' },
         });
     }
     async archiveExpiredEvents() {
@@ -366,10 +437,56 @@ let EventsService = class EventsService {
             return true;
         return this.calculateAge(birthDate) >= 18;
     }
+    resolveTimeframe(timeframe) {
+        const now = new Date();
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        if (timeframe === 'this-week' || timeframe === 'next-week') {
+            const day = start.getDay();
+            const diff = day === 0 ? -6 : 1 - day;
+            start.setDate(start.getDate() + diff);
+            if (timeframe === 'next-week') {
+                start.setDate(start.getDate() + 7);
+            }
+            const end = new Date(start);
+            end.setDate(start.getDate() + 7);
+            return { start, end };
+        }
+        if (timeframe === 'this-month') {
+            start.setDate(1);
+            const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+            return { start, end };
+        }
+        return null;
+    }
+    resolveCustomRange(start, end) {
+        let startDate;
+        let endDate;
+        if (start) {
+            const parsed = new Date(start);
+            if (!Number.isNaN(parsed.getTime())) {
+                parsed.setHours(0, 0, 0, 0);
+                startDate = parsed;
+            }
+        }
+        if (end) {
+            const parsedEnd = new Date(end);
+            if (!Number.isNaN(parsedEnd.getTime())) {
+                parsedEnd.setHours(0, 0, 0, 0);
+                endDate = new Date(parsedEnd.getTime());
+                endDate.setDate(endDate.getDate() + 1);
+            }
+        }
+        if (!startDate && !endDate)
+            return null;
+        const startOrNow = startDate !== null && startDate !== void 0 ? startDate : new Date();
+        const endOrStart = endDate !== null && endDate !== void 0 ? endDate : new Date(startOrNow.getFullYear(), startOrNow.getMonth(), startOrNow.getDate() + 1);
+        return { start: startOrNow, end: endOrStart };
+    }
 };
 exports.EventsService = EventsService;
 exports.EventsService = EventsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, notifications_service_1.NotificationsService])
 ], EventsService);
 //# sourceMappingURL=events.service.js.map

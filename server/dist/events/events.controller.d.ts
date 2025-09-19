@@ -3,14 +3,14 @@ import { CreateEventDto, CreateReviewDto, EventReviewsFilterDto, UpdateEventDto 
 export declare class EventsController {
     private events;
     constructor(events: EventsService);
-    list(city?: string, categoryId?: string, latStr?: string, lonStr?: string, radiusStr?: string, isPaidStr?: string, owner?: string, excludeMineStr?: string, req?: any): Promise<({
+    list(city?: string, categoryId?: string, latStr?: string, lonStr?: string, radiusStr?: string, isPaidStr?: string, owner?: string, excludeMineStr?: string, timeframe?: 'this-week' | 'next-week' | 'this-month', startDate?: string, endDate?: string, req?: any): Promise<{
+        availableSpots: number | null;
         owner: {
             id: string;
             firstName: string;
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         ownerId: string;
         title: string;
@@ -32,8 +32,9 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
-    })[]>;
+    }[]>;
     create(req: any, dto: CreateEventDto): Promise<{
         id: string;
         ownerId: string;
@@ -56,16 +57,17 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
     }>;
-    mine(req: any): Promise<({
+    mine(req: any): Promise<{
+        availableSpots: number | null;
         owner: {
             id: string;
             firstName: string;
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         ownerId: string;
         title: string;
@@ -87,10 +89,13 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
-    })[]>;
+    }[]>;
     participating(req: any): Promise<{
         participationStatus: string;
+        reviewed: boolean;
+        availableSpots: number | null;
         owner: {
             id: string;
             firstName: string;
@@ -118,6 +123,7 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
     }[]>;
     update(id: string, req: any, dto: UpdateEventDto): Promise<{
@@ -142,16 +148,17 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
     }>;
-    getOne(id: string, req: any): Promise<({
+    getOne(id: string, req: any): Promise<{
+        availableSpots: number | null;
         owner: {
             id: string;
             firstName: string;
             lastName: string;
             avatarUrl: string | null;
         };
-    } & {
         id: string;
         ownerId: string;
         title: string;
@@ -173,8 +180,9 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
-    }) | null>;
+    } | null>;
     createReview(id: string, req: any, dto: CreateReviewDto): Promise<{
         event: {
             id: string;
@@ -193,11 +201,11 @@ export declare class EventsController {
         id: string;
         createdAt: Date;
         eventId: string;
+        authorId: string;
+        targetUserId: string | null;
         target: string;
         rating: number;
         text: string | null;
-        authorId: string;
-        targetUserId: string | null;
     }>;
     listReviews(id: string, query: EventReviewsFilterDto): Promise<({
         author: {
@@ -211,21 +219,21 @@ export declare class EventsController {
         id: string;
         createdAt: Date;
         eventId: string;
+        authorId: string;
+        targetUserId: string | null;
         target: string;
         rating: number;
         text: string | null;
-        authorId: string;
-        targetUserId: string | null;
     })[]>;
     myReview(id: string, req: any): Promise<{
         id: string;
         createdAt: Date;
         eventId: string;
+        authorId: string;
+        targetUserId: string | null;
         target: string;
         rating: number;
         text: string | null;
-        authorId: string;
-        targetUserId: string | null;
     } | null>;
     setStatus(id: string, status: 'published' | 'draft', req: any): Promise<{
         id: string;
@@ -249,6 +257,7 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
     }>;
     remove(id: string, req: any): Promise<{
@@ -273,6 +282,7 @@ export declare class EventsController {
         coverUrl: string | null;
         createdAt: Date;
         updatedAt: Date;
+        reminderSentAt: Date | null;
         categoryId: string;
     }>;
 }

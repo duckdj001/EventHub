@@ -33,8 +33,14 @@ export class UsersController {
   }
 
   @Get(':id/public')
-  publicProfile(@Param('id') id: string) {
-    return this.users.profile(id);
+  publicProfile(@Param('id') id: string, @Req() req: any) {
+    const viewerId = req.user?.sub;
+    return this.users.profile(id, { viewerId });
+  }
+
+  @Get('search')
+  search(@Query('q') q?: string, @Query('limit') limit = '10') {
+    return this.users.search(q ?? '', Number(limit) || 10);
   }
 
   @Get(':id/reviews')

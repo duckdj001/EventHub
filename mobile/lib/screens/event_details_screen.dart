@@ -12,6 +12,9 @@ import '../services/participation_service.dart';
 import '../services/auth_store.dart';
 import '../widgets/auth_scope.dart';
 import 'package:go_router/go_router.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_theme_extension.dart';
+import '../theme/components/components.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final String id;
@@ -93,6 +96,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _myParticipation = my;
+        final spots = my?.availableSpots;
+        if (spots != null && e != null) {
+          e = e!.copyWith(availableSpots: spots);
+        }
       });
     } catch (_) {
       // игнорируем ошибку: не критично для отображения события
@@ -176,6 +183,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _myParticipation = result.participation;
+        final spots = result.availableSpots ?? result.participation.availableSpots;
+        if (spots != null && e != null) {
+          e = e!.copyWith(availableSpots: spots);
+        }
       });
       final msg = result.autoconfirmed
           ? 'Вы добавлены в список участников'
@@ -199,6 +210,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _myParticipation = updated;
+        final spots = updated.availableSpots;
+        if (spots != null && e != null) {
+          e = e!.copyWith(availableSpots: spots);
+        }
       });
       _toast('Заявка отменена');
     } catch (err) {
@@ -222,6 +237,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         _participants = _participants
             .map((item) => item.id == updated.id ? updated : item)
             .toList();
+        final spots = updated.availableSpots;
+        if (spots != null && e != null) {
+          e = e!.copyWith(availableSpots: spots);
+        }
       });
       final message = switch (status) {
         'approved' => 'Участник одобрен',
@@ -465,8 +484,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final isOwner = auth?.user?.id == ev.ownerId;
     final addressWidgets = _buildAddress(ev);
     final scheduleText = _formatSchedule(ev.startAt, ev.endAt);
+    final capacity = ev.capacity;
+    final freeSlots = _freeSlots(ev);
+    final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
       children: [
         AspectRatio(
           aspectRatio: 16 / 9,
@@ -477,9 +499,17 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 : Container(color: const Color(0xFFEFF2F7)),
           ),
         ),
-        const SizedBox(height: 12),
-        Text(ev.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.md),
+        AppSurface(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ev.title,
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: AppSpacing.xs),
         if (ev.isAdultOnly)
           Align(
             alignment: Alignment.centerLeft,
@@ -492,10 +522,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               child: const Text('18+', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
             ),
           ),
-        if (ev.isAdultOnly) const SizedBox(height: 8),
+        if (ev.isAdultOnly) const SizedBox(height: AppSpacing.sm),
 
         if (ev.owner != null) _buildOwnerBlock(ev.owner!),
-        if (ev.owner != null) const SizedBox(height: 12),
+        if (ev.owner != null) const SizedBox(height: AppSpacing.sm),
 
         Row(children: const [
           Icon(Icons.place_outlined, size: 18, color: Colors.black54),
@@ -506,7 +536,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           padding: const EdgeInsets.only(left: 24, top: 4),
           child: addressWidgets,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
 
         Row(children: const [
           Icon(Icons.schedule, size: 18, color: Colors.black54),
@@ -517,11 +547,36 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           padding: const EdgeInsets.only(left: 24, top: 4),
           child: Text(scheduleText, style: const TextStyle(fontSize: 16, color: Colors.black87)),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
+
+        if (capacity != null)
+          Row(
+            children: const [
+              Icon(Icons.groups_outlined, size: 18, color: Colors.black54),
+              SizedBox(width: 6),
+              Text('Места', style: TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        if (capacity != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 24, top: 4),
+            child: Text(
+              'Свободных мест: ${freeSlots ?? capacity} из $capacity',
+              style: TextStyle(
+                fontSize: 16,
+                color: (freeSlots ?? capacity) == 0 ? Colors.red.shade600 : Colors.black87,
+              ),
+            ),
+          ),
+        if (capacity != null) const SizedBox(height: AppSpacing.md),
 
         const Text('Описание', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Text(ev.description),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         ..._buildParticipationWidgets(ev, isOwner),
       ],
     );
@@ -593,30 +648,53 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final approved = status == 'approved';
     final cancelled = status == 'cancelled';
     final rejected = status == 'rejected';
-    final canRequestAgain = status == null || rejected || cancelled;
     final ended = ev.endAt.isBefore(DateTime.now());
     final participantReview = _myParticipation?.participantReview;
+    final capacity = ev.capacity;
+    final freeSlots = _freeSlots(ev);
+    final noSlots = freeSlots != null && freeSlots <= 0;
+    final slotsLabel = capacity != null
+        ? 'Свободных мест: ${freeSlots ?? capacity} из $capacity'
+        : null;
+    final canJoin = !ended && (status == null || rejected || cancelled);
+    final canRequestAgain = canJoin && !noSlots;
 
-    return Card(
-      elevation: 0,
-      color: const Color(0xFFF5F7FB),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Участие', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
+    return AppSurface(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Участие',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpacing.sm),
+            if (slotsLabel != null)
+              Text(
+                slotsLabel,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: noSlots ? Theme.of(context).colorScheme.error : null,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+          if (slotsLabel != null) const SizedBox(height: AppSpacing.xs),
             if (statusLabel != null)
-              Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
+              Text(statusLabel,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: statusColor, fontWeight: FontWeight.w600)),
+            if (ended)
+              const Padding(
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Событие уже завершилось'),
+              ),
             if (approved)
               const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Вы уже в списке участников', style: TextStyle(color: Colors.black54)),
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Вы уже в списке участников'),
               ),
             if (participantReview != null)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
                 child: Row(
                   children: [
                     _buildStars(participantReview.rating.toDouble(), size: 18),
@@ -634,69 +712,97 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               ),
             if (waiting)
               const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Организатор должен подтвердить участие', style: TextStyle(color: Colors.black54)),
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Организатор должен подтвердить участие'),
               ),
             if (rejected)
               const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Организатор отклонил заявку', style: TextStyle(color: Colors.black54)),
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Организатор отклонил заявку'),
+              ),
+            if (!approved && !waiting && slotsLabel != null && noSlots)
+              const Padding(
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Свободных мест нет'),
               ),
             if (cancelled)
               const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Вы отменили участие', style: TextStyle(color: Colors.black54)),
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Вы отменили участие'),
               ),
-            if (canRequestAgain)
-              FilledButton(
+            if (!ended && canRequestAgain)
+              AppButton.primary(
                 onPressed: _joinBusy ? null : _joinEvent,
-                child: _joinBusy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Участвовать'),
+                label: 'Участвовать',
+                busy: _joinBusy,
               ),
             if (!ended && !canRequestAgain && (approved || waiting))
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: FilledButton.tonal(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: AppButton.secondary(
                   onPressed: _joinBusy ? null : _cancelParticipation,
-                  child: _joinBusy
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Отменить участие'),
+                  label: 'Отменить участие',
+                  busy: _joinBusy,
                 ),
               ),
             if (!canRequestAgain && !approved && !waiting)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
                 child: Text(
                   'Вы можете подать заявку повторно позже',
-                  style: TextStyle(color: Colors.orange.shade700),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.orange.shade700),
                 ),
               ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
+  int? _freeSlots(Event ev) {
+    final capacity = ev.capacity;
+    if (capacity == null) return null;
+    final available = ev.availableSpots;
+    if (available == null) return capacity;
+    if (available < 0) return 0;
+    if (available > capacity) return capacity;
+    return available;
+  }
+
   List<Widget> _buildOwnerParticipantsSection(Event ev) {
+    final theme = Theme.of(context);
     final widgets = <Widget>[
-      const SizedBox(height: 24),
-      const Text('Участники', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpacing.lg),
+      Text('Участники', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: AppSpacing.sm),
     ];
 
+    if (ev.capacity != null) {
+      final freeSlots = _freeSlots(ev) ?? ev.capacity!;
+      widgets.add(Text(
+        'Свободных мест: $freeSlots из ${ev.capacity}',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: freeSlots == 0 ? theme.colorScheme.error : null,
+          fontWeight: FontWeight.w600,
+        ),
+      ));
+      widgets.add(const SizedBox(height: AppSpacing.sm));
+    }
+
     if (_participantsLoading) {
-      widgets.add(const Center(child: Padding(padding: EdgeInsets.only(top: 16), child: CircularProgressIndicator())));
+      widgets.add(const Center(child: Padding(padding: EdgeInsets.only(top: AppSpacing.md), child: CircularProgressIndicator())));
       return widgets;
     }
 
     if (_participantsError != null) {
-      widgets.add(Text('Ошибка загрузки участников: $_participantsError', style: const TextStyle(color: Colors.redAccent)));
+      widgets.add(Text(
+        'Ошибка загрузки участников: $_participantsError',
+        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+      ));
       return widgets;
     }
 
     if (_participants.isEmpty) {
-      widgets.add(const Text('Пока никто не записался')); 
+      widgets.add(Text('Пока никто не записался', style: theme.textTheme.bodyMedium));
       return widgets;
     }
 
@@ -716,8 +822,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         ? 'У'
         : initialsSource.characters.first.toUpperCase();
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    final theme = Theme.of(context);
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: EdgeInsets.zero,
       child: ListTile(
         onTap: user != null ? () => context.push('/users/${user.id}') : null,
         leading: CircleAvatar(
@@ -729,12 +837,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               ? Text(displayChar)
               : null,
         ),
-        title: Text(user?.fullName ?? 'Участник'),
+        title: Text(
+          user?.fullName ?? 'Участник',
+          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_statusLabel(p.status) ?? p.status, style: TextStyle(color: _statusColor(p.status))),
+            Text(
+              _statusLabel(p.status) ?? p.status,
+              style: theme.textTheme.bodySmall?.copyWith(color: _statusColor(p.status) ?? theme.colorScheme.onSurfaceVariant),
+            ),
             if (review != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -752,15 +866,16 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ? Wrap(
                 spacing: 8,
                 children: [
-                  TextButton(
+                  AppButton.secondary(
+                    fullWidth: false,
                     onPressed: busy ? null : () => _updateParticipantStatus(p, 'rejected'),
-                    child: const Text('Отклонить'),
+                    label: 'Отклонить',
                   ),
-                  FilledButton(
+                  AppButton.primary(
+                    fullWidth: false,
                     onPressed: busy ? null : () => _updateParticipantStatus(p, 'approved'),
-                    child: busy
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Подтвердить'),
+                    label: 'Подтвердить',
+                    busy: busy,
                   ),
                 ],
               )
@@ -788,56 +903,58 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       }
     }
 
-    return Card(
-      elevation: 0,
-      color: const Color(0xFFF5F7FB),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final theme = Theme.of(context);
+
+    return AppSurface(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            currentReview != null ? 'Ваш отзыв' : 'Оставить отзыв',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (!ended)
             Text(
-              currentReview != null ? 'Ваш отзыв' : 'Оставить отзыв',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            if (!ended)
-              const Text('Оценить событие можно после его завершения', style: TextStyle(color: Colors.black54))
-            else if (currentReview != null) ...[
-              Row(
-                children: [
-                  _buildStars(currentReview!.rating.toDouble(), size: 22),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Text('${currentReview!.rating}/5'),
-                  ),
-                ],
-              ),
-              if (currentReview!.text != null && currentReview!.text!.isNotEmpty)
+              'Оценить событие можно после его завершения',
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            )
+          else if (currentReview != null) ...[
+            Row(
+              children: [
+                _buildStars(currentReview!.rating.toDouble(), size: 22),
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(currentReview!.text!, style: const TextStyle(color: Colors.black87)),
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text('${currentReview!.rating}/5', style: theme.textTheme.bodyMedium),
                 ),
-              const SizedBox(height: 8),
-              const Text('Вы уже оценили событие', style: TextStyle(color: Colors.black54)),
-            ] else ...[
-              _buildStars(0),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: _openReviewSheet,
-                child: const Text('Оценить событие'),
+              ],
+            ),
+            if (currentReview!.text != null && currentReview!.text!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(currentReview!.text!, style: theme.textTheme.bodyMedium),
               ),
-            ],
+            const SizedBox(height: AppSpacing.xs),
+            Text('Вы уже оценили событие', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ] else ...[
+            _buildStars(0),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton.primary(
+              onPressed: _openReviewSheet,
+              label: 'Оценить событие',
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
   List<Widget> _buildReviewsBlock() {
+    final theme = Theme.of(context);
     final widgets = <Widget>[
-      const Text('Отзывы', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 8),
+      Text('Отзывы', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: AppSpacing.sm),
     ];
 
     if (_reviewsLoading && _reviews.isEmpty) {
@@ -846,12 +963,15 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     }
 
     if (_reviewsError != null) {
-      widgets.add(Text('Ошибка загрузки отзывов: $_reviewsError', style: const TextStyle(color: Colors.redAccent)));
+      widgets.add(Text(
+        'Ошибка загрузки отзывов: $_reviewsError',
+        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+      ));
       return widgets;
     }
 
     if (_reviews.isEmpty) {
-      widgets.add(const Text('Отзывов пока нет'));
+      widgets.add(Text('Отзывов пока нет', style: theme.textTheme.bodyMedium));
       return widgets;
     }
 
@@ -859,17 +979,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     widgets.add(Row(
       children: [
         _buildStars(avg),
-        const SizedBox(width: 8),
-        Text(avg.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w700)),
-        Text('  •  ${_reviews.length} отзывов', style: const TextStyle(color: Colors.black54)),
+        const SizedBox(width: AppSpacing.xs),
+        Text(avg.toStringAsFixed(1), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        Text('  •  ${_reviews.length} отзывов',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
       ],
     ));
-    widgets.add(const SizedBox(height: 12));
+    widgets.add(const SizedBox(height: AppSpacing.sm));
 
     widgets.addAll(_reviews.map(_buildReviewTile));
     if (_reviewsLoading) {
       widgets.add(const Padding(
-        padding: EdgeInsets.only(top: 12),
+        padding: EdgeInsets.only(top: AppSpacing.sm),
         child: Center(child: CircularProgressIndicator()),
       ));
     }
@@ -877,51 +998,64 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   }
 
   Widget _buildReviewTile(Review review) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: const Color(0xFFEFF2F7),
-                  backgroundImage: (review.author.avatarUrl != null && review.author.avatarUrl!.isNotEmpty)
-                      ? NetworkImage(review.author.avatarUrl!)
-                      : null,
-                  child: (review.author.avatarUrl == null || review.author.avatarUrl!.isEmpty)
-                      ? Text(review.author.initials)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(review.author.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          _buildStars(review.rating.toDouble(), size: 14),
-                          const SizedBox(width: 6),
-                          Text('${review.rating}/5', style: const TextStyle(color: Colors.black54, fontSize: 12)),
-                        ],
-                      ),
-                    ],
+    final theme = Theme.of(context);
+    final borderRadius = Theme.of(context).extension<AppThemeExtension>()?.panelRadius ?? BorderRadius.circular(24);
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: () => context.push('/users/${review.author.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: theme.colorScheme.surfaceVariant,
+                    backgroundImage: (review.author.avatarUrl != null && review.author.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(review.author.avatarUrl!)
+                        : null,
+                    child: (review.author.avatarUrl == null || review.author.avatarUrl!.isEmpty)
+                        ? Text(
+                            review.author.initials,
+                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                          )
+                        : null,
                   ),
-                ),
-                Text(DateFormat('dd.MM.yyyy').format(review.createdAt), style: const TextStyle(color: Colors.black45, fontSize: 12)),
-              ],
-            ),
-            if (review.text != null && review.text!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(review.text!),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(review.author.fullName, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            _buildStars(review.rating.toDouble(), size: 14),
+                            const SizedBox(width: 6),
+                            Text('${review.rating}/5',
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    DateFormat('dd.MM.yyyy').format(review.createdAt),
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
               ),
-          ],
+              if (review.text != null && review.text!.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(review.text!.trim(), style: theme.textTheme.bodyMedium),
+              ],
+            ],
+          ),
         ),
       ),
     );
