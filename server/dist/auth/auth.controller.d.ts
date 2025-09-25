@@ -14,12 +14,16 @@ export declare class AuthController {
             firstName: string;
             lastName: string;
             emailVerified: boolean;
+            mustChangePassword: boolean;
         };
     }>;
     verify(dto: VerifyEmailDto): Promise<{
         ok: boolean;
     }>;
     resend(email: string): Promise<{
+        ok: boolean;
+    }>;
+    forgot(email: string): Promise<{
         ok: boolean;
     }>;
 }

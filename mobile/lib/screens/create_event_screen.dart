@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/event.dart';
 import '../services/api_client.dart';
-import '../services/upload_service.dart';        // ← есть у тебя
+import '../services/upload_service.dart'; // ← есть у тебя
 import '../services/catalog_service.dart';
 import '../widgets/address_picker_field.dart';
 
@@ -21,7 +21,7 @@ class CreateEventScreen extends StatefulWidget {
 
 class _CreateEventScreenState extends State<CreateEventScreen> {
   // services
-  final api = ApiClient('http://localhost:3000');
+  final api = ApiClient('http://192.168.0.3:3000');
   final uploader = UploadService();
   final catalog = CatalogService();
 
@@ -44,6 +44,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   String? _currency = 'RUB';
   String? _categoryId;
   bool _isAdultOnly = false;
+  bool _allowStories = true;
 
   // geo from AddressPickerField
   double? _lat;
@@ -85,6 +86,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _lon = e.lon;
     _coverUrl = e.coverUrl;
     _isAdultOnly = e.isAdultOnly;
+    _allowStories = e.allowStories;
   }
 
   Future<void> _fetchCategories() async {
@@ -109,19 +111,33 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   Future<void> _pickDateTime({required bool start}) async {
     final now = DateTime.now();
-    final initial = start ? (_startAt ?? now) : (_endAt ?? _startAt ?? now);
+    final minDate = DateTime(now.year, now.month, now.day);
+
+    final existing = start ? _startAt : _endAt;
+    DateTime initial = existing ?? (start ? now : (_startAt ?? now));
+    if (initial.isBefore(minDate)) {
+      // Clamp the picker to today so past dates from existing drafts do not trigger assertions.
+      initial = DateTime(minDate.year, minDate.month, minDate.day, initial.hour,
+          initial.minute);
+    }
+
+    final firstDate = start
+        ? minDate
+        : (_startAt != null && _startAt!.isAfter(minDate)
+            ? _startAt!
+            : minDate);
 
     final d = await showDatePicker(
       context: context,
-      firstDate: now,
+      firstDate: DateTime(firstDate.year, firstDate.month, firstDate.day),
       lastDate: DateTime(now.year + 2),
-      initialDate: initial,
+      initialDate: DateTime(initial.year, initial.month, initial.day),
     );
     if (d == null) return;
 
     final t = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 18, minute: 0),
+      initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (t == null) return;
 
@@ -139,7 +155,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   String _fmtDate(DateTime? d) => d == null
       ? 'Выбрать'
       : '${d.day}.${d.month}.${d.year} '
-        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
@@ -198,6 +214,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         'currency': _isPaid ? _currency : null,
         'requiresApproval': _requiresApproval,
         'isAdultOnly': _isAdultOnly,
+        'allowStories': _allowStories,
       };
 
       if (widget.isEdit) {
@@ -207,7 +224,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       }
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
-      final successMsg = widget.isEdit ? 'Событие обновлено' : 'Событие создано';
+      final successMsg =
+          widget.isEdit ? 'Событие обновлено' : 'Событие создано';
       messenger.showSnackBar(SnackBar(content: Text(successMsg)));
       context.go('/my-events');
     } catch (e) {
@@ -232,7 +250,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEdit ? 'Редактировать событие' : 'Создать событие'),
+        title:
+            Text(widget.isEdit ? 'Редактировать событие' : 'Создать событие'),
       ),
       body: Form(
         key: _form,
@@ -328,10 +347,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             TextFormField(
               controller: _capacityCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Количество участников (до 48)'),
+              decoration: const InputDecoration(
+                  labelText: 'Количество участников (до 48)'),
               validator: (v) {
                 final parsed = int.tryParse((v ?? '').trim());
-                if (parsed == null || parsed < 1) return 'Укажите число больше 0';
+                if (parsed == null || parsed < 1)
+                  return 'Укажите число больше 0';
                 if (parsed > 48) return 'Максимум 48 участников';
                 return null;
               },
@@ -389,9 +410,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Только для 18+'),
-              subtitle: const Text('Событие будет скрыто для пользователей младше 18 лет'),
+              subtitle: const Text(
+                  'Событие будет скрыто для пользователей младше 18 лет'),
               value: _isAdultOnly,
               onChanged: (v) => setState(() => _isAdultOnly = v),
+            ),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Разрешить истории'),
+              subtitle:
+                  const Text('Участники смогут делиться фото и видео события'),
+              value: _allowStories,
+              onChanged: (v) => setState(() => _allowStories = v),
             ),
 
             const SizedBox(height: 16),

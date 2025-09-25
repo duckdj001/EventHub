@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FollowsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../common/prisma.service");
+const notifications_service_1 = require("../notifications/notifications.service");
 const USER_BRIEF_SELECT = {
     id: true,
     firstName: true,
@@ -19,18 +20,24 @@ const USER_BRIEF_SELECT = {
     avatarUrl: true,
 };
 let FollowsService = class FollowsService {
-    constructor(prisma) {
+    constructor(prisma, notifications) {
         this.prisma = prisma;
+        this.notifications = notifications;
     }
     async follow(followerId, followeeId) {
         if (followerId === followeeId) {
             throw new common_1.BadRequestException('Нельзя подписаться на себя');
         }
-        return this.prisma.follow.upsert({
+        const existing = await this.prisma.follow.findUnique({
             where: { followerId_followeeId: { followerId, followeeId } },
-            update: {},
-            create: { followerId, followeeId },
         });
+        if (existing)
+            return existing;
+        const created = await this.prisma.follow.create({
+            data: { followerId, followeeId },
+        });
+        await this.notifications.notifyNewFollower(followeeId, followerId);
+        return created;
     }
     async unfollow(followerId, followeeId) {
         await this.prisma.follow.deleteMany({ where: { followerId, followeeId } });
@@ -68,6 +75,6 @@ let FollowsService = class FollowsService {
 exports.FollowsService = FollowsService;
 exports.FollowsService = FollowsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, notifications_service_1.NotificationsService])
 ], FollowsService);
 //# sourceMappingURL=follows.service.js.map

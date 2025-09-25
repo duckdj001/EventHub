@@ -9,6 +9,8 @@ class UserProfile {
   final String? pendingEmail;
   final UserStats stats;
   final UserSocial social;
+  final List<UserCategory> categories;
+  final bool mustChangePassword;
 
   const UserProfile({
     required this.id,
@@ -21,6 +23,8 @@ class UserProfile {
     this.pendingEmail,
     this.stats = const UserStats(),
     this.social = const UserSocial(),
+    this.categories = const [],
+    this.mustChangePassword = false,
   });
 
   String get fullName => '$firstName $lastName'.trim();
@@ -34,6 +38,8 @@ class UserProfile {
     String? pendingEmail,
     UserStats? stats,
     UserSocial? social,
+    List<UserCategory>? categories,
+    bool? mustChangePassword,
   }) {
     return UserProfile(
       id: id,
@@ -46,6 +52,8 @@ class UserProfile {
       pendingEmail: pendingEmail ?? this.pendingEmail,
       stats: stats ?? this.stats,
       social: social ?? this.social,
+      categories: categories ?? this.categories,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
     );
   }
 
@@ -62,6 +70,8 @@ class UserProfile {
       pendingEmail: json['pendingEmail'] as String?,
       stats: UserStats.fromJson(json['stats'] as Map<String, dynamic>?),
       social: UserSocial.fromJson(json['social'] as Map<String, dynamic>?),
+      categories: _parseCategories(json['categories']),
+      mustChangePassword: json['mustChangePassword'] == true,
     );
   }
 
@@ -72,6 +82,30 @@ class UserProfile {
     if (value is DateTime) return value;
     return null;
   }
+}
+
+class UserCategory {
+  final String id;
+  final String name;
+
+  const UserCategory({required this.id, required this.name});
+
+  factory UserCategory.fromJson(Map<String, dynamic> json) {
+    return UserCategory(
+      id: (json['id'] as String).trim(),
+      name: (json['name'] as String?)?.trim() ?? '',
+    );
+  }
+}
+
+List<UserCategory> _parseCategories(Object? value) {
+  if (value is List) {
+    return value
+        .whereType<Map<String, dynamic>>()
+        .map(UserCategory.fromJson)
+        .toList(growable: false);
+  }
+  return const [];
 }
 
 class UserSocial {

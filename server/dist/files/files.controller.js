@@ -22,39 +22,57 @@ let FilesController = class FilesController {
         this.s3 = s3;
     }
     presign(type, ext) {
-        const safeExt = (ext || 'jpg').replace('.', '');
+        const safeExt = (ext || "jpg").replace(".", "");
         const key = `${type}/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
-        const mime = safeExt === 'png' ? 'image/png' : safeExt === 'webp' ? 'image/webp' : 'image/jpeg';
+        const mime = this.mimeForExt(safeExt);
         return this.s3.getPresignedUrl(key, mime);
     }
     presignPublic(type, ext) {
-        const safeExt = (ext || 'jpg').replace('.', '');
+        const safeExt = (ext || "jpg").replace(".", "");
         const key = `${type}/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
-        const mime = safeExt === 'png' ? 'image/png' : safeExt === 'webp' ? 'image/webp' : 'image/jpeg';
+        const mime = this.mimeForExt(safeExt);
         return this.s3.getPresignedUrl(key, mime);
+    }
+    mimeForExt(ext) {
+        switch (ext.toLowerCase()) {
+            case "png":
+                return "image/png";
+            case "webp":
+                return "image/webp";
+            case "mp4":
+                return "video/mp4";
+            case "mov":
+                return "video/quicktime";
+            case "m4v":
+                return "video/x-m4v";
+            case "webm":
+                return "video/webm";
+            default:
+                return "image/jpeg";
+        }
     }
 };
 exports.FilesController = FilesController;
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Get)('presign'),
-    __param(0, (0, common_1.Query)('type')),
-    __param(1, (0, common_1.Query)('ext')),
+    (0, common_1.Get)("presign"),
+    __param(0, (0, common_1.Query)("type")),
+    __param(1, (0, common_1.Query)("ext")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], FilesController.prototype, "presign", null);
 __decorate([
     (0, public_decorator_1.Public)(),
-    (0, common_1.Get)('presign-public'),
-    __param(0, (0, common_1.Query)('type')),
-    __param(1, (0, common_1.Query)('ext')),
+    (0, common_1.Get)("presign-public"),
+    __param(0, (0, common_1.Query)("type")),
+    __param(1, (0, common_1.Query)("ext")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], FilesController.prototype, "presignPublic", null);
 exports.FilesController = FilesController = __decorate([
-    (0, common_1.Controller)('files'),
+    (0, common_1.Controller)("files"),
     __metadata("design:paramtypes", [s3_service_1.S3Service])
 ], FilesController);
 //# sourceMappingURL=files.controller.js.map

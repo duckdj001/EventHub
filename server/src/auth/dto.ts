@@ -1,6 +1,18 @@
 // src/auth/dto.ts
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsDateString, Matches, IsBoolean, IsOptional } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsString() @IsNotEmpty() firstName!: string;
@@ -26,6 +38,13 @@ export class RegisterDto {
   @IsOptional()
   @IsBoolean()
   acceptedTerms?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(5)
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  categories?: string[];
 }
 
 export class LoginDto {

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const USER_BRIEF_SELECT = {
   id: true,
@@ -10,18 +11,25 @@ const USER_BRIEF_SELECT = {
 
 @Injectable()
 export class FollowsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notifications: NotificationsService) {}
 
   async follow(followerId: string, followeeId: string) {
     if (followerId === followeeId) {
       throw new BadRequestException('Нельзя подписаться на себя');
     }
 
-    return this.prisma.follow.upsert({
+    const existing = await this.prisma.follow.findUnique({
       where: { followerId_followeeId: { followerId, followeeId } },
-      update: {},
-      create: { followerId, followeeId },
     });
+    if (existing) return existing;
+
+    const created = await this.prisma.follow.create({
+      data: { followerId, followeeId },
+    });
+
+    await this.notifications.notifyNewFollower(followeeId, followerId);
+
+    return created;
   }
 
   async unfollow(followerId: string, followeeId: string) {

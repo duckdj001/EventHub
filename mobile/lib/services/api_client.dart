@@ -12,7 +12,7 @@ class ApiClient {
   /// Базовый URL API.
   final String base;
 
-  /// Публичный базовый URL бакета (например, http://127.0.0.1:9000/eventhub).
+  /// Публичный базовый URL бакета (например, http://192.168.0.3:9000/eventhub).
   /// Нужен, если сервер не возвращает готовый publicUrl в /files/presign-public.
   static String basePublicS3 = '';
 
@@ -151,18 +151,18 @@ class ApiClient {
     throw Exception('publicUrl not provided and basePublicS3/key are empty');
   }
 
-  static const String _defaultBase = 'http://localhost:3000';
+  static const String _defaultBase = 'http://192.168.0.3:3000';
 
   static String _normalizeBase(String baseUrl) {
     final uri = Uri.parse(baseUrl);
-    if (uri.host == 'localhost' || uri.host == '127.0.0.1') {
+    if (uri.host == '192.168.0.3' || uri.host == '192.168.0.3') {
       if (kIsWeb) return baseUrl;
       switch (defaultTargetPlatform) {
         case TargetPlatform.android:
-          return uri.replace(host: '10.0.2.2').toString();
+          return uri.replace(host: '192.168.0.3').toString();
         case TargetPlatform.iOS:
         case TargetPlatform.macOS:
-          return uri.replace(host: '127.0.0.1').toString();
+          return uri.replace(host: '192.168.0.3').toString();
         default:
           return baseUrl;
       }

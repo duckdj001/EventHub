@@ -51,7 +51,7 @@ const mail_service_1 = require("../common/mail.service");
 const EMAIL_CHANGE_EXPIRES_MS = 24 * 60 * 60 * 1000;
 function generateCode() {
     const n = crypto.randomInt(0, 1000000);
-    return n.toString().padStart(6, '0');
+    return n.toString().padStart(6, "0");
 }
 let UsersService = class UsersService {
     constructor(prisma, mail) {
@@ -76,6 +76,8 @@ let UsersService = class UsersService {
                 birthDate: true,
                 createdAt: true,
                 pendingEmail: includePrivate,
+                mustChangePassword: true,
+                deletedAt: true,
                 profile: {
                     select: {
                         bio: true,
@@ -87,38 +89,57 @@ let UsersService = class UsersService {
                 },
             },
         });
-        if (!user)
-            throw new common_1.NotFoundException('Пользователь не найден');
-        const [ratingAgg, ratingGroups, upcomingCount, pastCount, participantAgg, followersCount, followingCount, viewerFollow,] = await Promise.all([
+        if (!user || user.deletedAt != null) {
+            throw new common_1.NotFoundException("Пользователь не найден");
+        }
+        const [ratingAgg, ratingGroups, upcomingCount, pastCount, participantAgg, followersCount, followingCount, viewerFollow, categoryRows,] = await Promise.all([
             this.prisma.review.aggregate({
                 _avg: { rating: true },
                 _count: { rating: true },
-                where: { event: { ownerId: userId }, target: 'event' },
+                where: { event: { ownerId: userId }, target: "event" },
             }),
             this.prisma.review.groupBy({
-                by: ['rating'],
-                where: { event: { ownerId: userId }, target: 'event' },
+                by: ["rating"],
+                where: { event: { ownerId: userId }, target: "event" },
                 _count: { rating: true },
             }),
-            this.prisma.event.count({ where: { ownerId: userId, startAt: { gte: new Date() } } }),
-            this.prisma.event.count({ where: { ownerId: userId, endAt: { lt: new Date() } } }),
+            this.prisma.event.count({
+                where: { ownerId: userId, startAt: { gte: new Date() } },
+            }),
+            this.prisma.event.count({
+                where: { ownerId: userId, endAt: { lt: new Date() } },
+            }),
             this.prisma.review.aggregate({
                 _avg: { rating: true },
                 _count: { rating: true },
-                where: { target: 'participant', targetUserId: userId },
+                where: { target: "participant", targetUserId: userId },
             }),
             this.prisma.follow.count({ where: { followeeId: userId } }),
             this.prisma.follow.count({ where: { followerId: userId } }),
             viewerId
                 ? this.prisma.follow.findUnique({
                     where: {
-                        followerId_followeeId: { followerId: viewerId, followeeId: userId },
+                        followerId_followeeId: {
+                            followerId: viewerId,
+                            followeeId: userId,
+                        },
                     },
                     select: { id: true },
                 })
                 : null,
+            this.prisma.userCategoryPreference.findMany({
+                where: { userId },
+                include: { category: { select: { id: true, name: true } } },
+                orderBy: { category: { name: "asc" } },
+            }),
         ]);
-        const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        const distribution = {
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 0,
+        };
         ratingGroups.forEach((g) => {
             if (g.rating >= 1 && g.rating <= 5) {
                 distribution[g.rating] = g._count.rating;
@@ -141,6 +162,11 @@ let UsersService = class UsersService {
                 following: followingCount,
                 isFollowedByViewer: !!viewerFollow,
             },
+            categories: categoryRows.map((row) => ({
+                id: row.categoryId,
+                name: row.category.name,
+            })),
+            mustChangePassword: user.mustChangePassword,
         };
     }
     async search(query, limit = 10) {
@@ -148,16 +174,33 @@ let UsersService = class UsersService {
         if (!trimmed)
             return [];
         const take = Math.min(Math.max(limit, 1), 25);
+        const tokens = trimmed
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter((token) => token.length > 0)
+            .slice(0, 5);
+        const conditions = [
+            { firstName: { contains: trimmed, mode: "insensitive" } },
+            { lastName: { contains: trimmed, mode: "insensitive" } },
+            { email: { contains: trimmed, mode: "insensitive" } },
+        ];
+        if (tokens.length > 1) {
+            conditions.push({
+                AND: tokens.map((token) => ({
+                    OR: [
+                        { firstName: { contains: token, mode: "insensitive" } },
+                        { lastName: { contains: token, mode: "insensitive" } },
+                        { email: { contains: token, mode: "insensitive" } },
+                    ],
+                })),
+            });
+        }
         return this.prisma.user.findMany({
             where: {
-                OR: [
-                    { firstName: { contains: trimmed, mode: 'insensitive' } },
-                    { lastName: { contains: trimmed, mode: 'insensitive' } },
-                    { email: { contains: trimmed, mode: 'insensitive' } },
-                ],
+                OR: conditions,
             },
             take,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             select: {
                 id: true,
                 firstName: true,
@@ -178,7 +221,7 @@ let UsersService = class UsersService {
         if (dto.birthDate) {
             const bd = new Date(dto.birthDate);
             if (Number.isNaN(bd.getTime())) {
-                throw new common_1.BadRequestException('Некорректная дата рождения');
+                throw new common_1.BadRequestException("Некорректная дата рождения");
             }
             data.birthDate = bd;
         }
@@ -202,23 +245,25 @@ let UsersService = class UsersService {
             select: { id: true, email: true, passwordHash: true, pendingEmail: true },
         });
         if (!user || !user.passwordHash) {
-            throw new common_1.NotFoundException('Пользователь не найден');
+            throw new common_1.NotFoundException("Пользователь не найден");
         }
         const newEmail = dto.newEmail.toLowerCase().trim();
         if (!newEmail) {
-            throw new common_1.BadRequestException('Укажите правильный e-mail');
+            throw new common_1.BadRequestException("Укажите правильный e-mail");
         }
         const sameEmail = user.email.toLowerCase() === newEmail;
         if (sameEmail) {
-            throw new common_1.BadRequestException('Укажите другой e-mail');
+            throw new common_1.BadRequestException("Укажите другой e-mail");
         }
-        const existing = await this.prisma.user.findUnique({ where: { email: newEmail } });
+        const existing = await this.prisma.user.findUnique({
+            where: { email: newEmail },
+        });
         if (existing) {
-            throw new common_1.BadRequestException('E-mail уже используется');
+            throw new common_1.BadRequestException("E-mail уже используется");
         }
         const ok = await bcrypt.compare(dto.password, user.passwordHash);
         if (!ok) {
-            throw new common_1.BadRequestException('Неверный пароль');
+            throw new common_1.BadRequestException("Неверный пароль");
         }
         const code = generateCode();
         const expires = new Date(Date.now() + EMAIL_CHANGE_EXPIRES_MS);
@@ -230,7 +275,7 @@ let UsersService = class UsersService {
                 pendingEmailExpires: expires,
             },
         });
-        await this.mail.send(newEmail, 'Подтверждение изменения e-mail', `<p>Код подтверждения: <b>${code}</b></p><p>Если вы не запрашивали смену e-mail, проигнорируйте письмо.</p>`);
+        await this.mail.send(newEmail, "Подтверждение изменения e-mail", `<p>Код подтверждения: <b>${code}</b></p><p>Если вы не запрашивали смену e-mail, проигнорируйте письмо.</p>`);
         return { ok: true };
     }
     async confirmEmailChange(userId, dto) {
@@ -243,13 +288,14 @@ let UsersService = class UsersService {
             },
         });
         if (!(user === null || user === void 0 ? void 0 : user.pendingEmail) || !user.pendingEmailToken) {
-            throw new common_1.BadRequestException('Нет активного запроса на смену e-mail');
+            throw new common_1.BadRequestException("Нет активного запроса на смену e-mail");
         }
         if (user.pendingEmailToken !== dto.code) {
-            throw new common_1.BadRequestException('Неверный код');
+            throw new common_1.BadRequestException("Неверный код");
         }
-        if (user.pendingEmailExpires && user.pendingEmailExpires.getTime() < Date.now()) {
-            throw new common_1.BadRequestException('Код истёк, попробуйте снова');
+        if (user.pendingEmailExpires &&
+            user.pendingEmailExpires.getTime() < Date.now()) {
+            throw new common_1.BadRequestException("Код истёк, попробуйте снова");
         }
         await this.prisma.user.update({
             where: { id: userId },
@@ -265,32 +311,132 @@ let UsersService = class UsersService {
     }
     async reviews(userId, filter) {
         var _a;
-        const type = (_a = filter.type) !== null && _a !== void 0 ? _a : 'event';
-        const where = type === 'participant'
-            ? { target: 'participant', targetUserId: userId }
-            : { event: { ownerId: userId }, target: 'event' };
+        const type = (_a = filter.type) !== null && _a !== void 0 ? _a : "event";
+        const where = type === "participant"
+            ? { target: "participant", targetUserId: userId }
+            : { event: { ownerId: userId }, target: "event" };
         if (filter.rating) {
             where.rating = filter.rating;
         }
         return this.prisma.review.findMany({
             where,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             include: {
                 author: {
-                    select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true },
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        avatarUrl: true,
+                        email: true,
+                    },
                 },
-                event: { select: { id: true, title: true, startAt: true, endAt: true } },
+                event: {
+                    select: { id: true, title: true, startAt: true, endAt: true },
+                },
             },
         });
+    }
+    async getCategoryPreferences(userId) {
+        const rows = await this.prisma.userCategoryPreference.findMany({
+            where: { userId },
+            include: { category: { select: { id: true, name: true } } },
+            orderBy: { category: { name: "asc" } },
+        });
+        return rows.map((row) => ({
+            id: row.categoryId,
+            name: row.category.name,
+        }));
+    }
+    async updateCategoryPreferences(userId, categoryIds) {
+        const unique = Array.from(new Set(categoryIds.map((id) => id.trim()).filter((id) => id.length > 0)));
+        if (unique.length !== 5) {
+            throw new common_1.BadRequestException("Необходимо выбрать ровно 5 категорий");
+        }
+        const categories = await this.prisma.category.findMany({
+            where: { id: { in: unique } },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+        });
+        if (categories.length !== unique.length) {
+            throw new common_1.BadRequestException("Некорректный идентификатор категории");
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.userCategoryPreference.deleteMany({ where: { userId } });
+            await tx.userCategoryPreference.createMany({
+                data: unique.map((categoryId) => ({ userId, categoryId })),
+            });
+        });
+        return categories.map((category) => ({
+            id: category.id,
+            name: category.name,
+        }));
+    }
+    async changePassword(userId, currentPassword, newPassword) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { passwordHash: true },
+        });
+        if (!(user === null || user === void 0 ? void 0 : user.passwordHash)) {
+            throw new common_1.BadRequestException('Пароль не установлен');
+        }
+        const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isValid) {
+            throw new common_1.BadRequestException('Неверный текущий пароль');
+        }
+        const hash = await bcrypt.hash(newPassword, 10);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash: hash, mustChangePassword: false },
+        });
+        return { ok: true };
+    }
+    async deleteAccount(userId, password) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { passwordHash: true, email: true },
+        });
+        if (!(user === null || user === void 0 ? void 0 : user.passwordHash)) {
+            throw new common_1.BadRequestException('Неверный пароль');
+        }
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+            throw new common_1.BadRequestException('Неверный пароль');
+        }
+        const anonymizedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
+        const randomHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+        await this.prisma.$transaction(async (tx) => {
+            await tx.deviceToken.deleteMany({ where: { userId } });
+            await tx.notification.deleteMany({ where: { OR: [{ userId }, { actorId: userId }] } });
+            await tx.notificationPreference.deleteMany({ where: { userId } });
+            await tx.userCategoryPreference.deleteMany({ where: { userId } });
+            await tx.profile.updateMany({
+                where: { userId },
+                data: { bio: null, firstName: '', lastName: '', avatarUrl: null },
+            });
+            await tx.user.update({
+                where: { id: userId },
+                data: {
+                    email: anonymizedEmail,
+                    passwordHash: randomHash,
+                    firstName: 'Удалён',
+                    lastName: '',
+                    avatarUrl: null,
+                    deletedAt: new Date(),
+                    mustChangePassword: false,
+                },
+            });
+        });
+        return { ok: true };
     }
     async eventsCreated(userId, filter) {
         const now = new Date();
         const where = { ownerId: userId };
         switch (filter.filter) {
-            case 'upcoming':
+            case "upcoming":
                 where.startAt = { gte: now };
                 break;
-            case 'past':
+            case "past":
                 where.endAt = { lt: now };
                 break;
             default:
@@ -298,7 +444,7 @@ let UsersService = class UsersService {
         }
         return this.prisma.event.findMany({
             where,
-            orderBy: { startAt: 'desc' },
+            orderBy: { startAt: "desc" },
             select: {
                 id: true,
                 title: true,
@@ -314,6 +460,7 @@ let UsersService = class UsersService {
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, mail_service_1.MailService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        mail_service_1.MailService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

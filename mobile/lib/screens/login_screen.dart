@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/auth_store.dart';
+import '../services/catalog_service.dart';
 import '../services/upload_service.dart';
 import '../widgets/auth_scope.dart';
 import '../theme/components/components.dart';
@@ -41,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   // Сервисы
   late final UploadService uploader;
+  final CatalogService _catalog = CatalogService();
   AuthStore? _auth;
 
   // Табы: Вход / Регистрация
@@ -65,6 +67,12 @@ class _LoginScreenState extends State<LoginScreen>
   bool _regBusy = false;
   bool _regAcceptedTerms = false;
   bool _regPasswordVisible = false;
+  int _regStep = 0;
+  List<Map<String, dynamic>> _regCategories = const [];
+  final Set<String> _regSelectedCategories = <String>{};
+  bool _regCategoriesLoading = true;
+  String? _regCategoriesError;
+  bool _regCategoriesInitialized = false;
 
   @override
   void initState() {
@@ -78,6 +86,10 @@ class _LoginScreenState extends State<LoginScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _auth ??= AuthScope.of(context);
+    if (!_regCategoriesInitialized) {
+      _regCategoriesInitialized = true;
+      _loadRegisterCategories();
+    }
   }
 
   @override
@@ -107,10 +119,21 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _login() async {
     if (!_loginForm.currentState!.validate()) return;
     final auth = _auth ?? AuthScope.of(context);
+    final loginPassword = _loginPass.text;
     setState(() => _loginBusy = true);
     try {
-      await auth.login(_loginEmail.text.trim(), _loginPass.text);
+      final mustChange =
+          await auth.login(_loginEmail.text.trim(), loginPassword);
       if (!mounted) return;
+      if (mustChange) {
+        final changed =
+            await _openForceChangePasswordDialog(auth, loginPassword);
+        if (!changed) {
+          await auth.logout();
+          return;
+        }
+      }
+      _loginPass.clear();
       context.go('/'); // на главную
     } catch (e) {
       await _showLoginErrorDialog();
@@ -165,10 +188,24 @@ class _LoginScreenState extends State<LoginScreen>
                 if (!mounted) return;
                 Navigator.of(ctx).pop(); // закрыть лист
                 try {
-                  await auth.login(email, _regPass.text);
+                  final loginPassword = _regPass.text;
+                  final mustChange = await auth.login(email, loginPassword);
                   if (!mounted) return;
+                  if (mustChange) {
+                    final changed = await _openForceChangePasswordDialog(
+                      auth,
+                      loginPassword,
+                    );
+                    if (!changed) {
+                      await auth.logout();
+                      _toast('E-mail подтверждён! Войдите и задайте новый пароль.');
+                      _tab.animateTo(0);
+                      return;
+                    }
+                  }
                   context.go('/');
                   _toast('Добро пожаловать!');
+                  _regPass.clear();
                 } catch (err) {
                   _toast('E-mail подтверждён! Войдите, используя свои данные.');
                   _tab.animateTo(0);
@@ -274,7 +311,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (d != null) setState(() => _birthDate = d);
   }
 
-  Future<void> _register() async {
+  Future<void> _submitRegisterInfoStep() async {
     if (!_regForm.currentState!.validate()) return;
 
     if (_avatarFile == null && _avatarUrl == null) {
@@ -287,6 +324,24 @@ class _LoginScreenState extends State<LoginScreen>
     }
     if (!_regAcceptedTerms) {
       _toast('Подтвердите согласие с пользовательским соглашением');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    if (!_regCategoriesInitialized) {
+      _loadRegisterCategories();
+    }
+
+    setState(() => _regStep = 1);
+  }
+
+  Future<void> _register() async {
+    if (_regStep == 0) {
+      await _submitRegisterInfoStep();
+      return;
+    }
+    if (_regSelectedCategories.length != 5) {
+      _toast('Выберите ровно 5 категорий интересов');
       return;
     }
 
@@ -311,6 +366,7 @@ class _LoginScreenState extends State<LoginScreen>
         'birthDate': birthIso,
         'avatarUrl': avatarUrl,
         'acceptedTerms': _regAcceptedTerms,
+        'categories': _regSelectedCategories.toList(),
       };
 
       final auth = _auth ?? AuthScope.of(context);
@@ -319,10 +375,271 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       // сразу открываем лист для ввода кода
       await _openVerifySheet(_regEmail.text.trim());
+      if (mounted) {
+        setState(() => _regStep = 0);
+      }
     } catch (e) {
-      _toast('Ошибка регистрации: $e');
+      final message = e.toString();
+      if (message.contains('уже зарегистрирован')) {
+        await _showUserExistsDialog();
+      } else {
+        _toast('Ошибка регистрации: $message');
+      }
     } finally {
       if (mounted) setState(() => _regBusy = false);
+    }
+  }
+
+  Future<void> _loadRegisterCategories() async {
+    setState(() {
+      _regCategoriesLoading = true;
+      _regCategoriesError = null;
+    });
+    try {
+      final list = await _catalog.categories();
+      if (!mounted) return;
+      setState(() {
+        _regCategories = list;
+        _regCategoriesLoading = false;
+        if (_regSelectedCategories.isEmpty) {
+          final suggested = list
+              .where((item) => item['isSuggested'] == true)
+              .map((item) => item['id'] as String)
+              .toList(growable: false);
+          final prioritized = <String>[...suggested];
+          if (prioritized.length < 5) {
+            for (final item in list) {
+              final id = item['id'] as String?;
+              if (id == null) continue;
+              if (prioritized.contains(id)) continue;
+              prioritized.add(id);
+              if (prioritized.length == 5) break;
+            }
+          }
+          _regSelectedCategories
+            ..clear()
+            ..addAll(prioritized.take(5));
+        }
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _regCategoriesError = err.toString();
+        _regCategoriesLoading = false;
+      });
+    }
+  }
+
+  void _toggleRegisterCategory(String id) {
+    setState(() {
+      if (_regSelectedCategories.contains(id)) {
+        _regSelectedCategories.remove(id);
+      } else {
+        if (_regSelectedCategories.length >= 5) {
+          _toast('Можно выбрать не более пяти категорий');
+        } else {
+          _regSelectedCategories.add(id);
+        }
+      }
+    });
+  }
+
+  Future<void> _openForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _loginEmail.text.trim());
+    bool busy = false;
+    final auth = _auth ?? AuthScope.of(context);
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            Future<void> submit() async {
+              final email = emailCtrl.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Введите корректный e-mail')),
+                );
+                return;
+              }
+              setState(() => busy = true);
+              try {
+                await auth.requestPasswordReset(email);
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+                _toast('Временный пароль отправлен на почту');
+              } catch (err) {
+                setState(() => busy = false);
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Ошибка: $err')),
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Восстановление пароля'),
+              content: TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'E-mail'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Отмена'),
+                ),
+                TextButton(
+                  onPressed: busy ? null : submit,
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Отправить'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _openForceChangePasswordDialog(
+    AuthStore auth,
+    String currentPassword,
+  ) async {
+    FocusScope.of(context).unfocus();
+    final newPass = TextEditingController();
+    final repeatPass = TextEditingController();
+    bool busy = false;
+    bool success = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            Future<void> submit() async {
+              final np = newPass.text.trim();
+              final rp = repeatPass.text.trim();
+              if (np.length < 6) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Пароль должен содержать минимум 6 символов')),
+                );
+                return;
+              }
+              if (np != rp) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Пароли не совпадают')),
+                );
+                return;
+              }
+              setState(() => busy = true);
+              try {
+                await auth.changePassword(currentPassword, np);
+                success = true;
+                if (!mounted) return;
+                _loginPass.clear();
+                _regPass.clear();
+                Navigator.of(ctx).pop();
+              } catch (err) {
+                setState(() => busy = false);
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Не удалось сохранить пароль: $err')),
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Смените пароль'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Введите новый пароль перед продолжением работы в приложении.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: newPass,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Новый пароль'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: repeatPass,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Повторите пароль'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Выйти'),
+                ),
+                TextButton(
+                  onPressed: busy ? null : submit,
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Сохранить'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (success) {
+      _toast('Пароль обновлён');
+    }
+    return success;
+  }
+
+  Future<void> _showUserExistsDialog() async {
+    if (!mounted) return;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Аккаунт уже существует'),
+        content: const Text(
+          'Пользователь с таким e-mail уже зарегистрирован. '
+          'Можно войти под существующей учётной записью или восстановить пароль.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('reset'),
+            child: const Text('Восстановить пароль'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('login'),
+            child: const Text('Перейти ко входу'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    setState(() => _regStep = 0);
+
+    final email = _regEmail.text.trim();
+    if (email.isNotEmpty) {
+      _loginEmail.text = email;
+    }
+    _tab.animateTo(0);
+
+    if (result == 'reset') {
+      await _openForgotPasswordDialog();
     }
   }
 
@@ -538,6 +855,10 @@ class _LoginScreenState extends State<LoginScreen>
             label: 'Войти',
             busy: _loginBusy,
           ),
+          TextButton(
+            onPressed: _loginBusy ? null : _openForgotPasswordDialog,
+            child: const Text('Забыли пароль?'),
+          ),
         ],
       ),
     );
@@ -546,6 +867,73 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildRegisterForm(BuildContext context) {
     final theme = Theme.of(context);
 
+    return Form(
+      key: _regForm,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildRegisterStepHeader(theme),
+          const SizedBox(height: 20),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: _regStep == 0
+                ? _buildRegisterInfoStep(theme)
+                : _buildRegisterCategoriesStep(theme),
+          ),
+          const SizedBox(height: 24),
+          if (_regStep == 1)
+            TextButton(
+              onPressed: _regBusy ? null : () => setState(() => _regStep = 0),
+              child: const Text('Назад'),
+            ),
+          AppButton.primary(
+            onPressed: _regBusy
+                ? null
+                : (_regStep == 0 ? _submitRegisterInfoStep : _register),
+            label: _regStep == 0 ? 'Далее' : 'Создать аккаунт',
+            busy: _regStep == 1 && _regBusy,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegisterStepHeader(ThemeData theme) {
+    const titles = ['Основные данные', 'Интересы'];
+    const descriptions = [
+      'Заполните профиль и подтвердите согласие, чтобы продолжить.',
+      'Выберите ровно пять категорий, чтобы получать подходящие события.',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Шаг ${_regStep + 1} из 2',
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          titles[_regStep],
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          descriptions[_regStep],
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegisterInfoStep(ThemeData theme) {
     ImageProvider? avatar;
     if (_avatarFile != null) {
       avatar = FileImage(_avatarFile!);
@@ -553,202 +941,304 @@ class _LoginScreenState extends State<LoginScreen>
       avatar = NetworkImage(_avatarUrl!);
     }
 
-    return Form(
-      key: _regForm,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Material(
-            color: theme.colorScheme.surfaceVariant.withOpacity(
-              theme.brightness == Brightness.dark ? 0.25 : 0.4,
-            ),
+    return Column(
+      key: const ValueKey('register-info-step'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: theme.colorScheme.surfaceVariant.withOpacity(
+            theme.brightness == Brightness.dark ? 0.25 : 0.4,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            onTap: _regBusy ? null : _pickAvatar,
             borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              onTap: _regBusy ? null : _pickAvatar,
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
-                      backgroundImage: avatar,
-                      child: avatar == null
-                          ? const Icon(Icons.add_a_photo_outlined, size: 22)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            avatar == null
-                                ? 'Добавьте фото профиля'
-                                : 'Фото обновлено',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                    backgroundImage: avatar,
+                    child: avatar == null
+                        ? const Icon(Icons.add_a_photo_outlined, size: 22)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          avatar == null
+                              ? 'Добавьте фото профиля'
+                              : 'Фото обновлено',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'JPG или PNG до 5 МБ',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                            ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'JPG или PNG до 5 МБ',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
-                  ],
-                ),
+                  ),
+                  Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: AppTextField(
-                  controller: _firstName,
-                  label: 'Имя',
-                  prefixIcon: Icons.person_outline,
-                  validator: (v) => v != null && v.trim().isNotEmpty
-                      ? null
-                      : 'Укажите имя',
-                ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: _firstName,
+                label: 'Имя',
+                prefixIcon: Icons.person_outline,
+                validator: (v) => v != null && v.trim().isNotEmpty
+                    ? null
+                    : 'Укажите имя',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppTextField(
-                  controller: _lastName,
-                  label: 'Фамилия',
-                  validator: (v) => v != null && v.trim().isNotEmpty
-                      ? null
-                      : 'Укажите фамилию',
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppTextField(
+                controller: _lastName,
+                label: 'Фамилия',
+                validator: (v) => v != null && v.trim().isNotEmpty
+                    ? null
+                    : 'Укажите фамилию',
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          AppTextField(
-            controller: _regEmail,
-            keyboardType: TextInputType.emailAddress,
-            label: 'E-mail',
-            prefixIcon: Icons.mail_outline,
-            validator: (v) => v != null && v.contains('@')
-                ? null
-                : 'Введите корректный e-mail',
-          ),
-          const SizedBox(height: 16),
-          AppTextField(
-            controller: _regPass,
-            obscureText: !_regPasswordVisible,
-            label: 'Пароль (мин. 6)',
-            prefixIcon: Icons.lock_outline,
-            suffix: IconButton(
-              icon: Icon(_regPasswordVisible ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => _regPasswordVisible = !_regPasswordVisible),
             ),
-            validator: (v) => v != null && v.length >= 6
-                ? null
-                : 'Мин. 6 символов',
+          ],
+        ),
+        const SizedBox(height: 16),
+        AppTextField(
+          controller: _regEmail,
+          keyboardType: TextInputType.emailAddress,
+          label: 'E-mail',
+          prefixIcon: Icons.mail_outline,
+          validator: (v) => v != null && v.contains('@')
+              ? null
+              : 'Введите корректный e-mail',
+        ),
+        const SizedBox(height: 16),
+        AppTextField(
+          controller: _regPass,
+          obscureText: !_regPasswordVisible,
+          label: 'Пароль (мин. 6)',
+          prefixIcon: Icons.lock_outline,
+          suffix: IconButton(
+            icon: Icon(
+                _regPasswordVisible ? Icons.visibility_off : Icons.visibility),
+            onPressed: () => setState(() => _regPasswordVisible = !_regPasswordVisible),
           ),
-          const SizedBox(height: 16),
-          Material(
-            color: theme.colorScheme.surfaceVariant.withOpacity(
-              theme.brightness == Brightness.dark ? 0.2 : 0.32,
-            ),
+          validator: (v) => v != null && v.length >= 6
+              ? null
+              : 'Мин. 6 символов',
+        ),
+        const SizedBox(height: 16),
+        Material(
+          color: theme.colorScheme.surfaceVariant.withOpacity(
+            theme.brightness == Brightness.dark ? 0.2 : 0.32,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: _regBusy ? null : _pickBirthDate,
             borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: _regBusy ? null : _pickBirthDate,
-              borderRadius: BorderRadius.circular(18),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(Icons.event_outlined, color: theme.colorScheme.primary),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Дата рождения',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                    child: Icon(Icons.event_outlined, color: theme.colorScheme.primary),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Дата рождения',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _birthDate == null
-                                ? 'Выберите дату'
-                                : '${_birthDate!.day.toString().padLeft(2, '0')}.'
-                                    '${_birthDate!.month.toString().padLeft(2, '0')}.'
-                                    '${_birthDate!.year}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                            ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _birthDate == null
+                              ? 'Выберите дату'
+                              : '${_birthDate!.day.toString().padLeft(2, '0')}.'
+                                  '${_birthDate!.month.toString().padLeft(2, '0')}.'
+                                  '${_birthDate!.year}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
-                  ],
-                ),
+                  ),
+                  Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.4)),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: _regAcceptedTerms,
-                onChanged: (value) => setState(() => _regAcceptedTerms = value ?? false),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Я принимаю пользовательское соглашение',
-                      style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 18),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: _regAcceptedTerms,
+              onChanged: (value) => setState(() => _regAcceptedTerms = value ?? false),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Я принимаю пользовательское соглашение',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  TextButton(
+                    onPressed: _openTerms,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      alignment: Alignment.centerLeft,
                     ),
-                    TextButton(
-                      onPressed: _openTerms,
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 0),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        alignment: Alignment.centerLeft,
-                      ),
-                      child: const Text('Открыть условия'),
-                    ),
-                  ],
-                ),
+                    child: const Text('Открыть условия'),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          AppButton.primary(
-            onPressed: _regBusy ? null : _register,
-            label: 'Создать аккаунт',
-            busy: _regBusy,
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
+  Widget _buildRegisterCategoriesStep(ThemeData theme) {
+    if (_regCategoriesLoading) {
+      return const Center(
+        key: ValueKey('register-categories-loading'),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 32),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (_regCategoriesError != null) {
+      return Column(
+        key: const ValueKey('register-categories-error'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Не удалось загрузить категории: $_regCategoriesError',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _regBusy ? null : _loadRegisterCategories,
+            child: const Text('Повторить попытку'),
+          ),
+        ],
+      );
+    }
+
+    final suggestedIds = _regCategories
+        .where((category) => category['isSuggested'] == true)
+        .map((category) => category['id'])
+        .whereType<String>()
+        .toSet();
+
+    final background = theme.colorScheme.surfaceVariant.withOpacity(
+      theme.brightness == Brightness.dark ? 0.35 : 0.55,
+    );
+
+    return Column(
+      key: const ValueKey('register-categories-step'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Выбрано: ${_regSelectedCategories.length} из 5',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Выбранные категории подсвечены цветом. Нажмите на тег, чтобы добавить или убрать его.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (suggestedIds.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Категории со значком ✨ рекомендуем оставить — их чаще выбирают участники.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _regCategories.map((category) {
+            final id = category['id'];
+            final name = category['name'];
+            if (id is! String || name is! String) {
+              return const SizedBox.shrink();
+            }
+            final isSuggested = suggestedIds.contains(id);
+            final isSelected = _regSelectedCategories.contains(id);
+            final labelColor = isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface;
+            return ChoiceChip(
+              key: ValueKey('register-category-$id'),
+              avatar: isSuggested
+                  ? Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: isSelected
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.primary,
+                    )
+                  : null,
+              label: Text(name),
+              labelStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: labelColor,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              selected: isSelected,
+              selectedColor: theme.colorScheme.primary,
+              backgroundColor: background,
+              showCheckmark: false,
+              side: BorderSide(
+                color: isSelected
+                    ? Colors.transparent
+                    : theme.colorScheme.outline.withOpacity(0.3),
+              ),
+              onSelected: (_) => _toggleRegisterCategory(id),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 }

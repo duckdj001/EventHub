@@ -12,6 +12,7 @@ class Event {
   final bool isPaid;
   final bool isAddressHidden;
   final bool isAdultOnly;
+  final bool allowStories;
   final int? price;
   final String? currency;
   final String? coverUrl;
@@ -48,6 +49,7 @@ class Event {
     this.ownerId,
     this.participationStatus,
     this.reviewed = false,
+    this.allowStories = true,
     this.owner,
   });
 
@@ -64,6 +66,7 @@ class Event {
     bool? isPaid,
     bool? isAddressHidden,
     bool? isAdultOnly,
+    bool? allowStories,
     int? price,
     String? currency,
     String? coverUrl,
@@ -90,6 +93,7 @@ class Event {
       isPaid: isPaid ?? this.isPaid,
       isAddressHidden: isAddressHidden ?? this.isAddressHidden,
       isAdultOnly: isAdultOnly ?? this.isAdultOnly,
+      allowStories: allowStories ?? this.allowStories,
       price: price ?? this.price,
       currency: currency ?? this.currency,
       coverUrl: coverUrl ?? this.coverUrl,
@@ -118,6 +122,7 @@ class Event {
         isPaid: (j['isPaid'] ?? false) as bool,
         isAddressHidden: (j['isAddressHidden'] ?? false) as bool,
         isAdultOnly: (j['isAdultOnly'] ?? false) as bool,
+        allowStories: (j['allowStories'] ?? true) as bool,
         price: (j['price'] as num?)?.toInt(),
         currency: j['currency'] as String?,
         coverUrl: j['coverUrl'] as String?,
@@ -126,7 +131,8 @@ class Event {
         capacity: (j['capacity'] as num?)?.toInt(),
         availableSpots: (j['availableSpots'] as num?)?.toInt(),
         ownerId: j['ownerId'] as String?,
-        participationStatus: (j['participationStatus'] as String?)?.toLowerCase(),
+        participationStatus:
+            (j['participationStatus'] as String?)?.toLowerCase(),
         reviewed: j['reviewed'] == true,
         owner: j['owner'] is Map<String, dynamic>
             ? EventOwner.fromJson(j['owner'] as Map<String, dynamic>)

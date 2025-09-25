@@ -11,10 +11,15 @@ const common_1 = require("@nestjs/common");
 const follows_service_1 = require("./follows.service");
 const follows_controller_1 = require("./follows.controller");
 const prisma_service_1 = require("../common/prisma.service");
+const notifications_module_1 = require("../notifications/notifications.module");
 let FollowsModule = class FollowsModule {
 };
 exports.FollowsModule = FollowsModule;
 exports.FollowsModule = FollowsModule = __decorate([
-    (0, common_1.Module)({ controllers: [follows_controller_1.FollowsController], providers: [follows_service_1.FollowsService, prisma_service_1.PrismaService] })
+    (0, common_1.Module)({
+        imports: [notifications_module_1.NotificationsModule],
+        controllers: [follows_controller_1.FollowsController],
+        providers: [follows_service_1.FollowsService, prisma_service_1.PrismaService],
+    })
 ], FollowsModule);
 //# sourceMappingURL=follows.module.js.map

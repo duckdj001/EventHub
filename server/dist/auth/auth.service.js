@@ -63,29 +63,61 @@ let AuthService = class AuthService {
         this.jwt = jwt;
     }
     async register(dto) {
+        var _a;
         if (!dto.acceptedTerms) {
             throw new common_1.BadRequestException('Необходимо согласиться с пользовательским соглашением');
         }
-        const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
-        if (exists)
+        const exists = await this.prisma.user.findUnique({
+            where: { email: dto.email },
+            select: { id: true, deletedAt: true },
+        });
+        if (exists && exists.deletedAt == null) {
             throw new common_1.ConflictException('Этот e-mail уже зарегистрирован');
+        }
+        const categoriesInput = (_a = dto.categories) !== null && _a !== void 0 ? _a : [];
+        const categories = Array.from(new Set(categoriesInput
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0)));
+        if (categories.length > 0 && categories.length !== 5) {
+            throw new common_1.BadRequestException('Выберите ровно 5 категорий интересов');
+        }
+        if (categories.length) {
+            const valid = await this.prisma.category.findMany({
+                where: { id: { in: categories } },
+                select: { id: true },
+            });
+            if (valid.length !== categories.length) {
+                throw new common_1.BadRequestException('Некорректный идентификатор категории');
+            }
+        }
         const passwordHash = await bcrypt.hash(dto.password, 10);
         const code = genCode6();
         const expiresAt = new Date(Date.now() + VERIFY_CODE_TTL_MS);
         try {
-            const user = await this.prisma.user.create({
-                data: {
-                    email: dto.email,
-                    passwordHash,
-                    firstName: dto.firstName,
-                    lastName: dto.lastName,
-                    birthDate: new Date(dto.birthDate),
-                    avatarUrl: dto.avatarUrl,
-                    termsAcceptedAt: new Date(),
-                    emailVerified: false,
-                    emailVerifyCode: code,
-                    emailVerifyExpires: expiresAt,
-                },
+            const user = await this.prisma.$transaction(async (tx) => {
+                const created = await tx.user.create({
+                    data: {
+                        email: dto.email,
+                        passwordHash,
+                        firstName: dto.firstName,
+                        lastName: dto.lastName,
+                        birthDate: new Date(dto.birthDate),
+                        avatarUrl: dto.avatarUrl,
+                        termsAcceptedAt: new Date(),
+                        emailVerified: false,
+                        emailVerifyCode: code,
+                        emailVerifyExpires: expiresAt,
+                    },
+                });
+                if (categories.length > 0) {
+                    await tx.userCategoryPreference.createMany({
+                        data: categories.map((categoryId) => ({
+                            userId: created.id,
+                            categoryId,
+                        })),
+                    });
+                }
+                return created;
             });
             await this.mail.send(user.email, 'Подтверждение e-mail', `<p>Ваш код подтверждения: <b>${code}</b></p>`);
             return { ok: true };
@@ -121,8 +153,9 @@ let AuthService = class AuthService {
     }
     async login(dto) {
         const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-        if (!user)
+        if (!user || user.deletedAt != null) {
             throw new common_1.UnauthorizedException('Invalid credentials');
+        }
         if (!user.passwordHash)
             throw new common_1.UnauthorizedException('Invalid credentials');
         const ok = await bcrypt.compare(dto.password, user.passwordHash);
@@ -137,6 +170,7 @@ let AuthService = class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 emailVerified: user.emailVerified,
+                mustChangePassword: user.mustChangePassword,
             },
         };
     }
@@ -157,6 +191,27 @@ let AuthService = class AuthService {
                 emailVerifyExpires: null,
             },
         });
+        return { ok: true };
+    }
+    async forgotPassword(email) {
+        const normalized = email.trim().toLowerCase();
+        if (!normalized.length) {
+            return { ok: true };
+        }
+        const user = await this.prisma.user.findUnique({ where: { email: normalized } });
+        if (!user || user.deletedAt != null) {
+            return { ok: true };
+        }
+        const tempPassword = crypto.randomBytes(4).toString('hex');
+        const hash = await bcrypt.hash(tempPassword, 10);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordHash: hash,
+                mustChangePassword: true,
+            },
+        });
+        await this.mail.send(user.email, 'Восстановление пароля', `<p>Ваш временный пароль: <b>${tempPassword}</b></p><p>Войдите с ним и задайте новый пароль в настройках профиля.</p>`);
         return { ok: true };
     }
 };

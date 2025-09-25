@@ -21,9 +21,13 @@ export declare class AuthService {
             firstName: string;
             lastName: string;
             emailVerified: boolean;
+            mustChangePassword: boolean;
         };
     }>;
     verifyEmail(dto: VerifyEmailDto): Promise<{
+        ok: boolean;
+    }>;
+    forgotPassword(email: string): Promise<{
         ok: boolean;
     }>;
 }

@@ -1,5 +1,6 @@
 import { NotificationsService } from './notifications.service';
 import { DeregisterDeviceDto, RegisterDeviceDto } from './dto/register-device.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-preferences.dto';
 export declare class NotificationsController {
     private readonly notifications;
     constructor(notifications: NotificationsService);
@@ -16,6 +17,12 @@ export declare class NotificationsController {
                 avatarUrl: string | null;
             };
         } | null;
+        actor: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        } | null;
     } & {
         message: string;
         id: string;
@@ -23,6 +30,9 @@ export declare class NotificationsController {
         userId: string;
         type: import(".prisma/client").$Enums.NotificationType;
         eventId: string | null;
+        actorId: string | null;
+        contextId: string | null;
+        meta: import("@prisma/client/runtime/library").JsonValue | null;
         read: boolean;
     })[]>;
     markAll(req: any): Promise<{
@@ -41,5 +51,29 @@ export declare class NotificationsController {
     }>;
     deregisterDevice(dto: DeregisterDeviceDto): Promise<{
         ok: boolean;
+    }>;
+    getSettings(req: any): Promise<{
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        newEvent: boolean;
+        eventReminder: boolean;
+        participationApproved: boolean;
+        newFollower: boolean;
+        organizerContent: boolean;
+        followedStory: boolean;
+        eventUpdated: boolean;
+    }>;
+    updateSettings(req: any, dto: UpdateNotificationPreferencesDto): Promise<{
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        newEvent: boolean;
+        eventReminder: boolean;
+        participationApproved: boolean;
+        newFollower: boolean;
+        organizerContent: boolean;
+        followedStory: boolean;
+        eventUpdated: boolean;
     }>;
 }

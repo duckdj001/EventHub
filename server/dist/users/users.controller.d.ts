@@ -1,5 +1,5 @@
-import { UsersService } from './users.service';
-import { ConfirmEmailChangeDto, RequestEmailChangeDto, ReviewsFilterDto, UpdateProfileDto, UserEventsFilterDto } from './dto';
+import { UsersService } from "./users.service";
+import { ConfirmEmailChangeDto, RequestEmailChangeDto, ReviewsFilterDto, UpdateProfileDto, UserEventsFilterDto, UpdateCategoryPreferencesDto, ChangePasswordDto, DeleteAccountDto } from "./dto";
 export declare class UsersController {
     private readonly users;
     constructor(users: UsersService);
@@ -19,13 +19,11 @@ export declare class UsersController {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -33,6 +31,14 @@ export declare class UsersController {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
     }>;
     update(req: any, dto: UpdateProfileDto): Promise<{
         email: string | undefined;
@@ -50,13 +56,11 @@ export declare class UsersController {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -64,6 +68,28 @@ export declare class UsersController {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
+    }>;
+    myCategories(req: any): Promise<{
+        id: string;
+        name: string;
+    }[]>;
+    updateCategories(req: any, dto: UpdateCategoryPreferencesDto): Promise<{
+        id: string;
+        name: string;
+    }[]>;
+    changePassword(req: any, dto: ChangePasswordDto): Promise<{
+        ok: boolean;
+    }>;
+    deleteAccount(req: any, dto: DeleteAccountDto): Promise<{
+        ok: boolean;
     }>;
     requestEmail(req: any, dto: RequestEmailChangeDto): Promise<{
         ok: boolean;
@@ -87,13 +113,11 @@ export declare class UsersController {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -101,6 +125,14 @@ export declare class UsersController {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
     }>;
     search(q?: string, limit?: string): Promise<{
         id: string;
@@ -126,11 +158,11 @@ export declare class UsersController {
     } & {
         id: string;
         createdAt: Date;
-        rating: number;
-        target: string;
         eventId: string;
         authorId: string;
         targetUserId: string | null;
+        target: string;
+        rating: number;
         text: string | null;
     })[]>;
     events(id: string, query: UserEventsFilterDto): Promise<{

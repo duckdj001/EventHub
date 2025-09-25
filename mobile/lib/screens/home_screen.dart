@@ -25,7 +25,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final api = ApiClient('http://localhost:3000');
+  final api = ApiClient('http://192.168.0.3:3000');
   final loc = LocationService();
   final store = CityStore();
   final catalog = CatalogService();
@@ -553,13 +553,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     const listPadding = EdgeInsets.only(bottom: AppSpacing.lg);
     final hasEventResults = _filteredEvents.isNotEmpty;
+    final hasUserResults = _userResults.isNotEmpty;
     final queryNotEmpty = _searchQuery.trim().isNotEmpty;
     final noResultsDueToSearch = !loading &&
         error == null &&
-        events.isNotEmpty &&
-        !hasEventResults &&
         queryNotEmpty &&
-        _userResults.isEmpty &&
+        !hasEventResults &&
+        !hasUserResults &&
         !_searchingUsers;
 
     late Widget content;
@@ -603,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       );
-    } else if (events.isEmpty) {
+    } else if (!queryNotEmpty && events.isEmpty) {
       content = ListView(
         padding: listPadding,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -696,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             .textTheme
                             .bodyMedium
                             ?.copyWith(fontWeight: FontWeight.w600)),
-                    subtitle: u.email != null ? Text(u.email!) : null,
+                    subtitle: null,
                     trailing: const Icon(Icons.chevron_right),
                   ),
                 ),
@@ -849,14 +849,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(_searchExpanded ? 78 : 0),
-          child: AnimatedSwitcher(
+          child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
+            curve: Curves.easeOutCubic,
+            height: _searchExpanded ? 78 : 0,
+            alignment: Alignment.topCenter,
             child: !_searchExpanded
                 ? const SizedBox.shrink()
                 : Padding(
-                    key: const ValueKey('search-bar'),
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: SearchBar(
                       controller: _searchController,

@@ -13,6 +13,6 @@ async function bootstrap() {
   app.useGlobalFilters(new PrismaExceptionFilter());
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`API running on http://localhost:${port}`);
+  console.log(`API running on http://192.168.0.3:${port}`);
 }
 bootstrap();

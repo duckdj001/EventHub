@@ -16,6 +16,7 @@ exports.NotificationsController = void 0;
 const common_1 = require("@nestjs/common");
 const notifications_service_1 = require("./notifications.service");
 const register_device_dto_1 = require("./dto/register-device.dto");
+const update_preferences_dto_1 = require("./dto/update-preferences.dto");
 let NotificationsController = class NotificationsController {
     constructor(notifications) {
         this.notifications = notifications;
@@ -39,6 +40,12 @@ let NotificationsController = class NotificationsController {
     }
     deregisterDevice(dto) {
         return this.notifications.deregisterDevice(dto.token).then(() => ({ ok: true }));
+    }
+    getSettings(req) {
+        return this.notifications.getPreferences(req.user.sub);
+    }
+    updateSettings(req, dto) {
+        return this.notifications.updatePreferences(req.user.sub, dto);
     }
 };
 exports.NotificationsController = NotificationsController;
@@ -86,6 +93,21 @@ __decorate([
     __metadata("design:paramtypes", [register_device_dto_1.DeregisterDeviceDto]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "deregisterDevice", null);
+__decorate([
+    (0, common_1.Get)('settings'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "getSettings", null);
+__decorate([
+    (0, common_1.Patch)('settings'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ transform: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_preferences_dto_1.UpdateNotificationPreferencesDto]),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "updateSettings", null);
 exports.NotificationsController = NotificationsController = __decorate([
     (0, common_1.Controller)('notifications'),
     __metadata("design:paramtypes", [notifications_service_1.NotificationsService])

@@ -46,7 +46,7 @@ async function bootstrap() {
     app.useGlobalFilters(new prisma_exception_filter_1.PrismaExceptionFilter());
     const port = process.env.PORT || 3000;
     await app.listen(port);
-    console.log(`API running on http://localhost:${port}`);
+    console.log(`API running on http://192.168.0.3:${port}`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

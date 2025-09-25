@@ -1,4 +1,4 @@
-import { S3Service } from './s3.service';
+import { S3Service } from "./s3.service";
 export declare class FilesController {
     private s3;
     constructor(s3: S3Service);
@@ -12,4 +12,5 @@ export declare class FilesController {
         publicUrl: string;
         key: string;
     }>;
+    private mimeForExt;
 }

@@ -1,8 +1,10 @@
 import { PrismaService } from '../common/prisma.service';
 import { RateParticipantDto } from './dto';
+import { NotificationsService } from '../notifications/notifications.service';
 export declare class ParticipationsService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private notifications;
+    constructor(prisma: PrismaService, notifications: NotificationsService);
     private getEventOrThrow;
     request(eventId: string, userId: string): Promise<{
         autoconfirmed: boolean;
@@ -15,10 +17,10 @@ export declare class ParticipationsService {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     listForOwner(eventId: string, ownerId: string): Promise<{
         participantReview: {
@@ -36,10 +38,10 @@ export declare class ParticipationsService {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }[]>;
     changeStatus(eventId: string, ownerId: string, participationId: string, status: 'approved' | 'rejected' | 'cancelled'): Promise<{
         availableSpots: number | null;
@@ -51,16 +53,16 @@ export declare class ParticipationsService {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     getForUser(eventId: string, userId: string): Promise<{
         participantReview: {
             id: string;
-            eventId: string;
             createdAt: Date;
+            eventId: string;
             authorId: string;
             targetUserId: string | null;
             target: string;
@@ -69,10 +71,10 @@ export declare class ParticipationsService {
         } | null;
         availableSpots: number | null;
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     } | null>;
     cancel(eventId: string, userId: string): Promise<{
         availableSpots: number | null;
@@ -84,10 +86,10 @@ export declare class ParticipationsService {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     rateParticipant(eventId: string, ownerId: string, participationId: string, dto: RateParticipantDto): Promise<{
         event: {
@@ -105,8 +107,8 @@ export declare class ParticipationsService {
         };
     } & {
         id: string;
-        eventId: string;
         createdAt: Date;
+        eventId: string;
         authorId: string;
         targetUserId: string | null;
         target: string;

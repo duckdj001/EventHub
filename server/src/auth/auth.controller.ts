@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, VerifyEmailDto } from './dto';
 import { Public } from './public.decorator';
@@ -29,5 +29,11 @@ verify(@Body() dto: VerifyEmailDto) {
 @Post('resend')
 resend(@Body('email') email: string) {
   return this.auth.resend(email);
+}
+
+@Public()
+@Post('password/forgot')
+forgot(@Body('email') email: string) {
+  return this.auth.forgotPassword(email);
 }
 }

@@ -37,8 +37,15 @@ model User {
   participations Participation[] 
   notifications Notification[]
   deviceTokens DeviceToken[]
+  eventPhotos   EventPhoto[]
+  notificationPreferences NotificationPreference?
+  notificationActions Notification[] @relation("NotificationActor")
+  categoryPreferences UserCategoryPreference[]
   termsAcceptedAt DateTime?
   updatedAt        DateTime @updatedAt
+  stories    EventStory[]
+  deletedAt DateTime?
+  mustChangePassword Boolean @default(false)
 }
 
 model Profile {
@@ -71,6 +78,7 @@ model Category {
   parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
   children Category[] @relation("CategoryToCategory")
   events   Event[]
+  followers UserCategoryPreference[]
 }
 
 model Event {
@@ -84,6 +92,7 @@ model Event {
   currency         String?
   requiresApproval Boolean  @default(false)
   isAdultOnly      Boolean  @default(false)
+  allowStories     Boolean  @default(true)
   startAt          DateTime
   endAt            DateTime
 
@@ -110,6 +119,7 @@ model Event {
   parts            Participation[]
   reviews          Review[]
   notifications    Notification[]
+  stories          EventStory[]
 
   @@index([ownerId])         // NEW
   @@index([lat, lon])        // NEW (для «рядом со мной»)
@@ -122,13 +132,17 @@ model Notification {
   type      NotificationType
   event     Event?            @relation(fields: [eventId], references: [id])
   eventId   String?
+  actor     User?             @relation("NotificationActor", fields: [actorId], references: [id])
+  actorId   String?
+  contextId String?
+  meta      Json?
   message   String
   read      Boolean           @default(false)
   createdAt DateTime          @default(now())
 
   @@index([userId, read])
   @@index([userId, createdAt])
-  @@unique([userId, type, eventId])
+  @@unique([userId, type, eventId, actorId, contextId])
 }
 
 model DeviceToken {
@@ -147,6 +161,37 @@ model DeviceToken {
 enum NotificationType {
   NEW_EVENT
   EVENT_REMINDER
+  PARTICIPATION_APPROVED
+  NEW_FOLLOWER
+  EVENT_STORY_ADDED
+  EVENT_PHOTO_ADDED
+  FOLLOWED_STORY_ADDED
+  EVENT_UPDATED
+}
+
+model NotificationPreference {
+  userId               String   @id
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEvent             Boolean  @default(true)
+  eventReminder        Boolean  @default(true)
+  participationApproved Boolean @default(true)
+  newFollower          Boolean  @default(true)
+  organizerContent     Boolean  @default(true)
+  followedStory        Boolean  @default(true)
+  eventUpdated         Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model UserCategoryPreference {
+  userId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@id([userId, categoryId])
 }
 
 model Tag {
@@ -166,11 +211,28 @@ model EventTag {
 }
 
 model EventPhoto {
-  id      String @id @default(cuid())
-  event   Event  @relation(fields: [eventId], references: [id])
-  eventId String
-  url     String
-  order   Int    @default(0)
+  id        String   @id @default(cuid())
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+}
+
+model EventStory {
+  id        String   @id @default(cuid())
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
 }
 
 model Participation {

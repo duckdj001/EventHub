@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, Req, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, ValidationPipe } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { DeregisterDeviceDto, RegisterDeviceDto } from './dto/register-device.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-preferences.dto';
 
 @Controller('notifications')
 export class NotificationsController {
@@ -39,5 +40,18 @@ export class NotificationsController {
   @Post('device/deregister')
   deregisterDevice(@Body(new ValidationPipe({ transform: true })) dto: DeregisterDeviceDto) {
     return this.notifications.deregisterDevice(dto.token).then(() => ({ ok: true }));
+  }
+
+  @Get('settings')
+  getSettings(@Req() req: any) {
+    return this.notifications.getPreferences(req.user.sub);
+  }
+
+  @Patch('settings')
+  updateSettings(
+    @Req() req: any,
+    @Body(new ValidationPipe({ transform: true })) dto: UpdateNotificationPreferencesDto,
+  ) {
+    return this.notifications.updatePreferences(req.user.sub, dto);
   }
 }

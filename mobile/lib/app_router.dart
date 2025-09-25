@@ -11,6 +11,8 @@ import 'screens/my_events_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/public_profile_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/notification_settings_screen.dart';
+import 'screens/category_preferences_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/auth_store.dart';
 
@@ -82,6 +84,8 @@ GoRouter buildRouter(AuthStore auth) {
           GoRoute(path: '/profile/edit', builder: (_, __) => const EditProfileScreen()),
           GoRoute(path: '/my-events', builder: (_, __) => const MyEventsScreen()),
           GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+          GoRoute(path: '/settings/categories', builder: (_, __) => const CategoryPreferencesScreen()),
+          GoRoute(path: '/settings/notifications', builder: (_, __) => const NotificationSettingsScreen()),
           GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
         ],
       ),

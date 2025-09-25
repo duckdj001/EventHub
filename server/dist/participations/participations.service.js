@@ -12,11 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParticipationsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../common/prisma.service");
+const notifications_service_1 = require("../notifications/notifications.service");
 const OWNER_CAN_REQUEST_ERROR = 'Организатор уже участвует по умолчанию';
 const SEAT_OCCUPYING_STATUSES = ['approved', 'attended'];
 let ParticipationsService = class ParticipationsService {
-    constructor(prisma) {
+    constructor(prisma, notifications) {
         this.prisma = prisma;
+        this.notifications = notifications;
     }
     async getEventOrThrow(eventId) {
         const event = await this.prisma.event.findUnique({
@@ -69,6 +71,9 @@ let ParticipationsService = class ParticipationsService {
             });
         });
         const availableSpots = await this.calculateRemainingSpots(eventId, event.capacity);
+        if (participation.status === 'approved') {
+            await this.notifications.notifyParticipationApproved(eventId, userId);
+        }
         return { ...participation, autoconfirmed: !event.requiresApproval, availableSpots };
     }
     async listForOwner(eventId, ownerId) {
@@ -168,6 +173,9 @@ let ParticipationsService = class ParticipationsService {
             });
         });
         const availableSpots = await this.calculateRemainingSpots(eventId, participation.event.capacity);
+        if (updated.status === 'approved') {
+            await this.notifications.notifyParticipationApproved(eventId, updated.userId, ownerId);
+        }
         return { ...updated, availableSpots };
     }
     async getForUser(eventId, userId) {
@@ -317,6 +325,6 @@ let ParticipationsService = class ParticipationsService {
 exports.ParticipationsService = ParticipationsService;
 exports.ParticipationsService = ParticipationsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, notifications_service_1.NotificationsService])
 ], ParticipationsService);
 //# sourceMappingURL=participations.service.js.map

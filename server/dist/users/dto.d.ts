@@ -19,3 +19,13 @@ export declare class ReviewsFilterDto {
 export declare class UserEventsFilterDto {
     filter?: 'all' | 'upcoming' | 'past';
 }
+export declare class UpdateCategoryPreferencesDto {
+    categories: string[];
+}
+export declare class ChangePasswordDto {
+    currentPassword: string;
+    newPassword: string;
+}
+export declare class DeleteAccountDto {
+    password: string;
+}

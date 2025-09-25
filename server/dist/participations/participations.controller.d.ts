@@ -14,10 +14,10 @@ export declare class ParticipationsController {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     list(eventId: string, req: any): Promise<{
         participantReview: {
@@ -35,16 +35,16 @@ export declare class ParticipationsController {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }[]>;
     me(eventId: string, req: any): Promise<{
         participantReview: {
             id: string;
-            eventId: string;
             createdAt: Date;
+            eventId: string;
             authorId: string;
             targetUserId: string | null;
             target: string;
@@ -53,10 +53,10 @@ export declare class ParticipationsController {
         } | null;
         availableSpots: number | null;
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     } | null>;
     cancel(eventId: string, req: any): Promise<{
         availableSpots: number | null;
@@ -68,10 +68,10 @@ export declare class ParticipationsController {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     setStatus(eventId: string, participationId: string, status: 'approved' | 'rejected' | 'cancelled', req: any): Promise<{
         availableSpots: number | null;
@@ -83,10 +83,10 @@ export declare class ParticipationsController {
             avatarUrl: string | null;
         };
         id: string;
-        eventId: string;
-        userId: string;
-        status: string;
         createdAt: Date;
+        userId: string;
+        eventId: string;
+        status: string;
     }>;
     rate(eventId: string, participationId: string, dto: RateParticipantDto, req: any): Promise<{
         event: {
@@ -104,8 +104,8 @@ export declare class ParticipationsController {
         };
     } & {
         id: string;
-        eventId: string;
         createdAt: Date;
+        eventId: string;
         authorId: string;
         targetUserId: string | null;
         target: string;

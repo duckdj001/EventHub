@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_client.dart';
 import '../services/upload_service.dart';
+import '../services/catalog_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,8 +11,9 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final api = ApiClient('http://localhost:3000');
+  final api = ApiClient('http://192.168.0.3:3000');
   final up = UploadService();
+  final catalog = CatalogService();
   final f = GlobalKey<FormState>();
   final email = TextEditingController();
   final pass = TextEditingController();
@@ -21,6 +23,71 @@ class _RegisterScreenState extends State<RegisterScreen> {
   File? avatar;
   bool busy = false;
   bool _acceptedTerms = false;
+  bool _categoriesLoading = true;
+  String? _categoriesError;
+  List<Map<String, dynamic>> _categories = const [];
+  final Set<String> _selectedCategories = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _categoriesLoading = true;
+      _categoriesError = null;
+    });
+    try {
+      final list = await catalog.categories();
+      setState(() {
+        _categories = list;
+        _categoriesLoading = false;
+        if (_selectedCategories.isEmpty) {
+          final suggested = list
+              .where((item) => item['isSuggested'] == true)
+              .map((item) => item['id'])
+              .whereType<String>()
+              .toList(growable: false);
+          final prioritized = <String>[...suggested];
+          if (prioritized.length < 5) {
+            for (final item in list) {
+              final id = item['id'];
+              if (id is! String || id.isEmpty) continue;
+              if (prioritized.contains(id)) continue;
+              prioritized.add(id);
+              if (prioritized.length == 5) break;
+            }
+          }
+          _selectedCategories
+            ..clear()
+            ..addAll(prioritized.take(5));
+        }
+      });
+    } catch (err) {
+      setState(() {
+        _categoriesLoading = false;
+        _categoriesError = err.toString();
+      });
+    }
+  }
+
+  void _toggleCategory(String id) {
+    setState(() {
+      if (_selectedCategories.contains(id)) {
+        _selectedCategories.remove(id);
+      } else {
+        if (_selectedCategories.length >= 5) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Можно выбрать не более пяти категорий')),
+          );
+        } else {
+          _selectedCategories.add(id);
+        }
+      }
+    });
+  }
 
   Future<void> _pickAvatar() async {
     final p = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
@@ -35,6 +102,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Подтвердите согласие с пользовательским соглашением')));
       return;
     }
+    if (_selectedCategories.length != 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите ровно пять категорий интересов')),
+      );
+      return;
+    }
 
     setState(()=>busy=true);
     try {
@@ -47,6 +120,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'birthDate': birth!.toIso8601String(),
         'avatarUrl': url,
         'acceptedTerms': _acceptedTerms,
+        'categories': _selectedCategories.toList(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Проверьте почту и подтвердите email')));
@@ -98,6 +172,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               },
             ),
             const SizedBox(height: 12),
+            Text(
+              'Выберите 5 категорий, чтобы видеть подходящие события',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            _buildCategorySelector(),
+            const SizedBox(height: 12),
             CheckboxListTile(
               value: _acceptedTerms,
               onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
@@ -122,6 +203,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
+  Widget _buildCategorySelector() {
+    if (_categoriesLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_categoriesError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Не удалось загрузить категории: $_categoriesError'),
+          const SizedBox(height: 8),
+          TextButton(onPressed: _loadCategories, child: const Text('Повторить')),
+        ],
+      );
+    }
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Выбрано: ${_selectedCategories.length} из 5',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 4),
+        if (_categories.any((c) => c['isSuggested'] == true))
+          Text(
+            'Категории со значком звезды рекомендуем оставить — их чаще выбирают участники.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _categories.map((category) {
+            final id = category['id'];
+            final name = category['name'];
+            if (id is! String || name is! String) {
+              return const SizedBox.shrink();
+            }
+            final isSuggested = category['isSuggested'] == true;
+            final isSelected = _selectedCategories.contains(id);
+            final background = theme.colorScheme.surfaceVariant.withOpacity(
+              theme.brightness == Brightness.dark ? 0.35 : 0.55,
+            );
+            final labelColor = isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface;
+            return ChoiceChip(
+              avatar: isSuggested
+                  ? Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: isSelected
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.primary,
+                    )
+                  : null,
+              label: Text(name),
+              labelStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: labelColor,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              selected: isSelected,
+              selectedColor: theme.colorScheme.primary,
+              backgroundColor: background,
+              showCheckmark: false,
+              side: BorderSide(
+                color: isSelected
+                    ? Colors.transparent
+                    : theme.colorScheme.outline.withOpacity(0.3),
+              ),
+              onSelected: (_) => _toggleCategory(id),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
   void _showTerms() {
     showModalBottomSheet(

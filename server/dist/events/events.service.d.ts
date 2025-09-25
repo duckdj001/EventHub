@@ -1,6 +1,6 @@
-import { PrismaService } from '../common/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { CreateEventDto, CreateReviewDto, EventReviewsFilterDto, UpdateEventDto } from './dto';
+import { PrismaService } from "../common/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { CreateEventDto, CreateEventStoryDto, CreateEventPhotoDto, CreateReviewDto, EventReviewsFilterDto, UpdateEventDto } from "./dto";
 export declare class EventsService {
     private prisma;
     private notifications;
@@ -15,7 +15,7 @@ export declare class EventsService {
         isPaid?: boolean;
         ownerId?: string;
         excludeMine?: boolean;
-        timeframe?: 'this-week' | 'next-week' | 'this-month';
+        timeframe?: "this-week" | "next-week" | "this-month";
         startDate?: string;
         endDate?: string;
     }, options?: {
@@ -29,6 +29,8 @@ export declare class EventsService {
             avatarUrl: string | null;
         };
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -37,6 +39,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -47,8 +50,6 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }[]>;
@@ -61,6 +62,8 @@ export declare class EventsService {
             avatarUrl: string | null;
         };
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -69,6 +72,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -79,13 +83,13 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     } | null>;
-    setStatus(id: string, status: 'published' | 'draft', userId: string): Promise<{
+    setStatus(id: string, status: "published" | "draft", userId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -94,6 +98,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -104,13 +109,13 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }>;
     remove(id: string, userId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -119,6 +124,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -129,13 +135,13 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }>;
     create(ownerId: string, dto: CreateEventDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -144,6 +150,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -154,13 +161,13 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }>;
     update(id: string, ownerId: string, dto: UpdateEventDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -169,6 +176,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -179,8 +187,6 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }>;
@@ -195,6 +201,8 @@ export declare class EventsService {
             avatarUrl: string | null;
         };
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         ownerId: string;
         title: string;
         description: string;
@@ -203,6 +211,7 @@ export declare class EventsService {
         currency: string | null;
         requiresApproval: boolean;
         isAdultOnly: boolean;
+        allowStories: boolean;
         startAt: Date;
         endAt: Date;
         city: string;
@@ -213,11 +222,73 @@ export declare class EventsService {
         capacity: number | null;
         status: string;
         coverUrl: string | null;
-        createdAt: Date;
-        updatedAt: Date;
         reminderSentAt: Date | null;
         categoryId: string;
     }[]>;
+    listStories(eventId: string): Promise<({
+        author: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        authorId: string;
+        url: string;
+    })[]>;
+    createStory(eventId: string, userId: string, dto: CreateEventStoryDto): Promise<{
+        author: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        authorId: string;
+        url: string;
+    }>;
+    deleteStory(eventId: string, storyId: string, userId: string): Promise<{
+        ok: boolean;
+    }>;
+    listPhotos(eventId: string): Promise<({
+        author: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        authorId: string;
+        url: string;
+        order: number;
+    })[]>;
+    createPhoto(eventId: string, userId: string, dto: CreateEventPhotoDto): Promise<{
+        author: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        eventId: string;
+        authorId: string;
+        url: string;
+        order: number;
+    }>;
+    deletePhoto(eventId: string, photoId: string, userId: string): Promise<{
+        ok: boolean;
+    }>;
     createReview(eventId: string, authorId: string, dto: CreateReviewDto): Promise<{
         event: {
             id: string;

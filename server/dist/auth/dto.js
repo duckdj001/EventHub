@@ -66,6 +66,14 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], RegisterDto.prototype, "acceptedTerms", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(5),
+    (0, class_validator_1.ArrayMaxSize)(5),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], RegisterDto.prototype, "categories", void 0);
 class LoginDto {
 }
 exports.LoginDto = LoginDto;

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "639472656807",
+    "project_id": "vibe-70f8c",
+    "storage_bucket": "vibe-70f8c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:639472656807:android:ae6ce9634f33afd7739682",
+        "android_client_info": {
+          "package_name": "com.dima.eventhub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfSomxR0nIfK4P5R5YFv9U4Wm_NB6GzII"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

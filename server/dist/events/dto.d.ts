@@ -7,6 +7,7 @@ export declare class CreateEventDto {
     currency?: string;
     requiresApproval?: boolean;
     isAdultOnly?: boolean;
+    allowStories?: boolean;
     startAt: string;
     endAt: string;
     city: string;
@@ -25,4 +26,10 @@ export declare class CreateReviewDto {
 }
 export declare class EventReviewsFilterDto {
     rating?: number;
+}
+export declare class CreateEventStoryDto {
+    url: string;
+}
+export declare class CreateEventPhotoDto {
+    url: string;
 }

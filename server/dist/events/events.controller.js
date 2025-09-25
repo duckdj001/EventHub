@@ -18,6 +18,7 @@ const events_service_1 = require("./events.service");
 const dto_1 = require("./dto");
 const common_2 = require("@nestjs/common");
 const jwt_guard_1 = require("../auth/jwt.guard");
+const public_decorator_1 = require("../auth/public.decorator");
 let EventsController = class EventsController {
     constructor(events) {
         this.events = events;
@@ -27,10 +28,10 @@ let EventsController = class EventsController {
         const lat = latStr ? Number(latStr) : undefined;
         const lon = lonStr ? Number(lonStr) : undefined;
         const radiusKm = radiusStr ? Number(radiusStr) : undefined;
-        const isPaid = typeof isPaidStr === 'string' ? isPaidStr === 'true' : undefined;
-        const ownerId = owner === 'me' ? (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub : undefined;
+        const isPaid = typeof isPaidStr === "string" ? isPaidStr === "true" : undefined;
+        const ownerId = owner === "me" ? (_a = req === null || req === void 0 ? void 0 : req.user) === null || _a === void 0 ? void 0 : _a.sub : undefined;
         const viewerId = (_b = req === null || req === void 0 ? void 0 : req.user) === null || _b === void 0 ? void 0 : _b.sub;
-        const excludeMine = excludeMineStr === 'true';
+        const excludeMine = excludeMineStr === "true";
         return this.events.list({
             city,
             categoryId,
@@ -67,8 +68,26 @@ let EventsController = class EventsController {
     listReviews(id, query) {
         return this.events.eventReviews(id, query);
     }
+    stories(id) {
+        return this.events.listStories(id);
+    }
     myReview(id, req) {
         return this.events.myReview(id, req.user.sub);
+    }
+    addStory(id, req, dto) {
+        return this.events.createStory(id, req.user.sub, dto);
+    }
+    deleteStory(id, storyId, req) {
+        return this.events.deleteStory(id, storyId, req.user.sub);
+    }
+    photos(id) {
+        return this.events.listPhotos(id);
+    }
+    addPhoto(id, req, dto) {
+        return this.events.createPhoto(id, req.user.sub, dto);
+    }
+    deletePhoto(id, photoId, req) {
+        return this.events.deletePhoto(id, photoId, req.user.sub);
     }
     setStatus(id, status, req) {
         return this.events.setStatus(id, status, req.user.sub);
@@ -80,17 +99,17 @@ let EventsController = class EventsController {
 exports.EventsController = EventsController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Query)('city')),
-    __param(1, (0, common_1.Query)('categoryId')),
-    __param(2, (0, common_1.Query)('lat')),
-    __param(3, (0, common_1.Query)('lon')),
-    __param(4, (0, common_1.Query)('radiusKm')),
-    __param(5, (0, common_1.Query)('isPaid')),
-    __param(6, (0, common_1.Query)('owner')),
-    __param(7, (0, common_1.Query)('excludeMine')),
-    __param(8, (0, common_1.Query)('timeframe')),
-    __param(9, (0, common_1.Query)('startDate')),
-    __param(10, (0, common_1.Query)('endDate')),
+    __param(0, (0, common_1.Query)("city")),
+    __param(1, (0, common_1.Query)("categoryId")),
+    __param(2, (0, common_1.Query)("lat")),
+    __param(3, (0, common_1.Query)("lon")),
+    __param(4, (0, common_1.Query)("radiusKm")),
+    __param(5, (0, common_1.Query)("isPaid")),
+    __param(6, (0, common_1.Query)("owner")),
+    __param(7, (0, common_1.Query)("excludeMine")),
+    __param(8, (0, common_1.Query)("timeframe")),
+    __param(9, (0, common_1.Query)("startDate")),
+    __param(10, (0, common_1.Query)("endDate")),
     __param(11, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, String, String, String, Object]),
@@ -107,7 +126,7 @@ __decorate([
 ], EventsController.prototype, "create", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Get)('mine'),
+    (0, common_1.Get)("mine"),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -115,7 +134,7 @@ __decorate([
 ], EventsController.prototype, "mine", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Get)('participating'),
+    (0, common_1.Get)("participating"),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -123,8 +142,8 @@ __decorate([
 ], EventsController.prototype, "participating", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_2.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Patch)(":id"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -132,8 +151,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "update", null);
 __decorate([
-    (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
@@ -141,8 +160,8 @@ __decorate([
 ], EventsController.prototype, "getOne", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Post)(':id/reviews'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Post)(":id/reviews"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -150,17 +169,25 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "createReview", null);
 __decorate([
-    (0, common_1.Get)(':id/reviews'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/reviews"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ transform: true }))),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, dto_1.EventReviewsFilterDto]),
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "listReviews", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)(":id/stories"),
+    __param(0, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "stories", null);
+__decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Get)(':id/reviews/me'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/reviews/me"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
@@ -168,9 +195,57 @@ __decorate([
 ], EventsController.prototype, "myReview", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_2.Patch)(':id/status'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)('status')),
+    (0, common_1.Post)(":id/stories"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, dto_1.CreateEventStoryDto]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "addStory", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_2.Delete)(":id/stories/:storyId"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Param)("storyId")),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "deleteStory", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)(":id/photos"),
+    __param(0, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "photos", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)(":id/photos"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, dto_1.CreateEventPhotoDto]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "addPhoto", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_2.Delete)(":id/photos/:photoId"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Param)("photoId")),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], EventsController.prototype, "deletePhoto", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_2.Patch)(":id/status"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Body)("status")),
     __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, Object]),
@@ -178,15 +253,15 @@ __decorate([
 ], EventsController.prototype, "setStatus", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_2.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)(":id"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], EventsController.prototype, "remove", null);
 exports.EventsController = EventsController = __decorate([
-    (0, common_1.Controller)('events'),
+    (0, common_1.Controller)("events"),
     __metadata("design:paramtypes", [events_service_1.EventsService])
 ], EventsController);
 //# sourceMappingURL=events.controller.js.map

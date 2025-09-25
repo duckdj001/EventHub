@@ -1,60 +1,96 @@
-// lib/services/upload_service.dart
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'api_client.dart';
 
 class UploadService {
-  final api = ApiClient('http://localhost:3000');
+  static const int _chunkSize = 64 * 1024; // 64 KB
+  final ApiClient api = ApiClient();
 
-  /// Загружает файл на S3/MinIO через пресайн.
-  /// [type] — папка/префикс (например, 'avatars' или 'covers')
-  /// [auth] — для /files/presign (true) или /files/presign-public (false)
   Future<String> uploadImage(
     File file, {
     required String type,
     bool auth = true,
+    void Function(double progress)? onProgress,
   }) async {
     final ext = _ext(file.path);
     final endpoint = auth ? '/files/presign' : '/files/presign-public';
 
-    // 1) Берём пресайн
-    final presign = await api.get('$endpoint?type=$type&ext=$ext', auth: auth)
-    as Map<String, dynamic>;
+    final response = await api.get('$endpoint?type=$type&ext=$ext', auth: auth)
+        as Map<String, dynamic>;
+    final uploadUrl = (response['uploadUrl'] ?? response['url']) as String;
+    final publicUrl = response['publicUrl'] as String?;
+    final key = response['key'] as String?;
+    final basePublicUrl = response['basePublicUrl'] as String?;
 
-// правильные имена полей!
-    final uploadUrl = presign['uploadUrl'] as String;   // <-- было 'url'
-    final publicUrl = presign['publicUrl'] as String?;
-    final key       = presign['key'] as String?;
-    final basePublicUrl = presign['basePublicUrl'] as String?;
+    final client = HttpClient();
+    try {
+      final uri = Uri.parse(uploadUrl);
+      final request = await client.openUrl('PUT', uri);
+      request.headers.set(HttpHeaders.contentTypeHeader, _mimeByExt(ext));
+      request.headers.removeAll(HttpHeaders.expectHeader);
 
-    // 2) PUT файла
-    final put = await http.put(
-        Uri.parse(uploadUrl),
-        headers: {'Content-Type': _mimeByExt(ext)},
-        body: await file.readAsBytes(),
-        );
-        if (put.statusCode >= 400) {
-        throw Exception('S3 upload failed: ${put.statusCode} ${put.body}');
+      final totalBytes = await file.length();
+      if (totalBytes > 0) {
+        request.contentLength = totalBytes;
+      }
+
+      var uploaded = 0;
+      onProgress?.call(0.0);
+
+      await for (final chunk in file.openRead()) {
+        final data = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        var offset = 0;
+        while (offset < data.length) {
+          final end = math.min(offset + _chunkSize, data.length);
+          final slice = Uint8List.sublistView(data, offset, end);
+          request.add(slice);
+          if (totalBytes > 0) {
+            uploaded += slice.length;
+            final progress = (uploaded / totalBytes).clamp(0.0, 1.0);
+            onProgress?.call(progress.toDouble());
+          }
+          // Дожидаемся, пока сокет примет буфер — так прогресс отражает реальную отдачу.
+          await request.flush();
+          offset = end;
+          // Yield to event loop so UI can repaint.
+          await Future<void>.delayed(Duration.zero);
         }
+      }
 
+      final response = await request.close();
+      if (response.statusCode >= 400) {
+        final body = await utf8.decoder.bind(response).join();
+        throw Exception('S3 upload failed: ${response.statusCode} $body');
+      }
+      await response.drain<void>();
+    } finally {
+      client.close(force: true);
+    }
 
-    // 3) Возвращаем публичный URL
-    // предпочтительно то, что дал сервер:
+    onProgress?.call(1.0);
+
     if (publicUrl != null && publicUrl.isNotEmpty) return publicUrl;
-    if (basePublicUrl != null && basePublicUrl.isNotEmpty && key != null && key.isNotEmpty) {
-    return '$basePublicUrl/$key';
+    if (basePublicUrl != null &&
+        basePublicUrl.isNotEmpty &&
+        key != null &&
+        key.isNotEmpty) {
+      return '$basePublicUrl/$key';
     }
     if (key != null && key.isNotEmpty && ApiClient.basePublicS3.isNotEmpty) {
-    return '${ApiClient.basePublicS3}/$key';
+      return '${ApiClient.basePublicS3}/$key';
     }
+    if (key != null && key.isNotEmpty) return key;
     return uploadUrl.split('?').first;
   }
 
   String _ext(String path) {
-    final i = path.lastIndexOf('.');
-    if (i < 0) return 'jpg';
-    return path.substring(i + 1).toLowerCase();
+    final index = path.lastIndexOf('.');
+    if (index < 0) return 'jpg';
+    return path.substring(index + 1).toLowerCase();
   }
 
   String _mimeByExt(String ext) {
@@ -63,6 +99,14 @@ class UploadService {
         return 'image/png';
       case 'webp':
         return 'image/webp';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'm4v':
+        return 'video/x-m4v';
+      case 'webm':
+        return 'video/webm';
       case 'jpg':
       case 'jpeg':
       default:

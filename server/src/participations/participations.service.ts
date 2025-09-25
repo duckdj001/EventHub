@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 
 import { PrismaService } from '../common/prisma.service';
 import { RateParticipantDto } from './dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const OWNER_CAN_REQUEST_ERROR = 'Организатор уже участвует по умолчанию';
 const SEAT_OCCUPYING_STATUSES = ['approved', 'attended'] as const;
@@ -10,7 +11,7 @@ type SeatOccupyingStatus = (typeof SEAT_OCCUPYING_STATUSES)[number];
 
 @Injectable()
 export class ParticipationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notifications: NotificationsService) {}
 
   private async getEventOrThrow(eventId: string) {
     const event = await this.prisma.event.findUnique({
@@ -68,6 +69,10 @@ export class ParticipationsService {
     });
 
     const availableSpots = await this.calculateRemainingSpots(eventId, event.capacity);
+
+    if (participation.status === 'approved') {
+      await this.notifications.notifyParticipationApproved(eventId, userId);
+    }
 
     return { ...participation, autoconfirmed: !event.requiresApproval, availableSpots };
   }
@@ -170,6 +175,10 @@ export class ParticipationsService {
     });
 
     const availableSpots = await this.calculateRemainingSpots(eventId, participation.event.capacity);
+
+    if (updated.status === 'approved') {
+      await this.notifications.notifyParticipationApproved(eventId, updated.userId, ownerId);
+    }
 
     return { ...updated, availableSpots };
   }

@@ -1,4 +1,5 @@
 import '../models/notification_item.dart';
+import '../models/notification_preferences.dart';
 import 'api_client.dart';
 
 class NotificationService {
@@ -39,5 +40,21 @@ class NotificationService {
     await api.post('/notifications/device/deregister', {
       'token': token,
     });
+  }
+
+  Future<NotificationPreferences> loadPreferences() async {
+    final res = await api.get('/notifications/settings');
+    if (res is Map<String, dynamic>) {
+      return NotificationPreferences.fromJson(res);
+    }
+    throw Exception('Unexpected response for notification settings');
+  }
+
+  Future<NotificationPreferences> savePreferences(NotificationPreferences prefs) async {
+    final res = await api.patch('/notifications/settings', prefs.toJson());
+    if (res is Map<String, dynamic>) {
+      return NotificationPreferences.fromJson(res);
+    }
+    throw Exception('Unexpected response when saving notification settings');
   }
 }

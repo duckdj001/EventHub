@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EventReviewsFilterDto = exports.CreateReviewDto = exports.UpdateEventDto = exports.CreateEventDto = void 0;
+exports.CreateEventPhotoDto = exports.CreateEventStoryDto = exports.EventReviewsFilterDto = exports.CreateReviewDto = exports.UpdateEventDto = exports.CreateEventDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CreateEventDto {
@@ -54,6 +54,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Boolean)
 ], CreateEventDto.prototype, "isAdultOnly", void 0);
+__decorate([
+    (0, class_validator_1.IsBoolean)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Boolean)
+], CreateEventDto.prototype, "allowStories", void 0);
 __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
@@ -124,4 +129,20 @@ __decorate([
     (0, class_validator_1.Max)(5),
     __metadata("design:type", Number)
 ], EventReviewsFilterDto.prototype, "rating", void 0);
+class CreateEventStoryDto {
+}
+exports.CreateEventStoryDto = CreateEventStoryDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CreateEventStoryDto.prototype, "url", void 0);
+class CreateEventPhotoDto {
+}
+exports.CreateEventPhotoDto = CreateEventPhotoDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CreateEventPhotoDto.prototype, "url", void 0);
 //# sourceMappingURL=dto.js.map

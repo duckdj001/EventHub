@@ -43,7 +43,7 @@ class AuthStore extends ChangeNotifier {
     }
   }
 
-  Future<void> login(String email, String password) async {
+  Future<bool> login(String email, String password) async {
     final res = await api.post(
       '/auth/login',
       {'email': email, 'password': password},
@@ -56,12 +56,18 @@ class AuthStore extends ChangeNotifier {
     }
     await api.storeToken(token);
 
+    final mustChangePassword = res['user'] is Map<String, dynamic>
+        ? (res['user']['mustChangePassword'] == true)
+        : false;
+
     try {
       await refreshProfile();
     } catch (e) {
       await api.clearToken();
       rethrow;
     }
+
+    return mustChangePassword;
   }
 
   Future<void> refreshProfile() async {
@@ -104,6 +110,27 @@ class AuthStore extends ChangeNotifier {
     } catch (_) {
       // ignore errors silently
     }
+  }
+
+  Future<void> requestPasswordReset(String email) async {
+    await api.post(
+      '/auth/password/forgot',
+      {'email': email},
+      auth: false,
+    );
+  }
+
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    await api.patch('/users/me/password', {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+    await refreshProfile();
+  }
+
+  Future<void> deleteAccount(String password) async {
+    await api.post('/users/me/delete', {'password': password});
+    await logout();
   }
 
   Future<void> _setUnreadNotifications(int value) async {

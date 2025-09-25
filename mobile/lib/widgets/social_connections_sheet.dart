@@ -1,5 +1,6 @@
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../models/social_connection.dart';
@@ -103,6 +104,7 @@ class _SocialConnectionsSheetState extends State<SocialConnectionsSheet> {
                           final initial = trimmed.isNotEmpty
                               ? trimmed.characters.first.toUpperCase()
                               : 'U';
+                          final router = GoRouter.of(context);
 
                           return ListTile(
                             leading: CircleAvatar(
@@ -116,6 +118,11 @@ class _SocialConnectionsSheetState extends State<SocialConnectionsSheet> {
                             ),
                             title: Text(name),
                             subtitle: subtitle != null ? Text(subtitle) : null,
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              router.push('/users/${item.id}');
+                            },
                           );
                         },
                       ),

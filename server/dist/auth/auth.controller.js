@@ -33,6 +33,9 @@ let AuthController = class AuthController {
     resend(email) {
         return this.auth.resend(email);
     }
+    forgot(email) {
+        return this.auth.forgotPassword(email);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -67,6 +70,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "resend", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('password/forgot'),
+    __param(0, (0, common_1.Body)('email')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "forgot", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

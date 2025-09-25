@@ -6,5 +6,6 @@ export declare class CategoriesController {
         id: string;
         name: string;
         parentId: string | null;
+        isSuggested: boolean;
     }[]>;
 }

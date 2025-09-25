@@ -1,21 +1,33 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { CreateEventDto, CreateReviewDto, EventReviewsFilterDto, UpdateEventDto } from './dto';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { PrismaService } from "../common/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import {
+  CreateEventDto,
+  CreateEventStoryDto,
+  CreateEventPhotoDto,
+  CreateReviewDto,
+  EventReviewsFilterDto,
+  UpdateEventDto,
+} from "./dto";
 
 const CATEGORY_TITLES: Record<string, string> = {
-  'default-category': 'Встречи',
-  music: 'Музыка',
-  sport: 'Спорт',
-  education: 'Обучение',
-  art: 'Искусство',
-  business: 'Бизнес',
-  family: 'Семья',
-  health: 'Здоровье',
-  travel: 'Путешествия',
-  food: 'Еда',
-  tech: 'Технологии',
-  games: 'Игры',
+  "default-category": "Встречи",
+  music: "Музыка",
+  sport: "Спорт",
+  education: "Обучение",
+  art: "Искусство",
+  business: "Бизнес",
+  family: "Семья",
+  health: "Здоровье",
+  travel: "Путешествия",
+  food: "Еда",
+  tech: "Технологии",
+  games: "Игры",
 };
 
 const OWNER_SELECT = {
@@ -25,20 +37,28 @@ const OWNER_SELECT = {
   avatarUrl: true,
 };
 
-const CAPACITY_OCCUPYING_STATUSES = ['approved', 'attended'] as const;
+const CAPACITY_OCCUPYING_STATUSES = ["approved", "attended"] as const;
 
-function haversineKm(a: {lat:number, lon:number}, b: {lat:number, lon:number}) {
-  const toRad = (x:number)=>x*Math.PI/180;
+function haversineKm(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+) {
+  const toRad = (x: number) => (x * Math.PI) / 180;
   const R = 6371;
   const dLat = toRad(b.lat - a.lat);
   const dLon = toRad(b.lon - a.lon);
-  const s1 = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
+  const s1 =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s1));
 }
 
 @Injectable()
 export class EventsService {
-  constructor(private prisma: PrismaService, private notifications: NotificationsService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   private async computeAvailability(
     events: Array<{ id: string; capacity: number | null | undefined }>,
@@ -49,7 +69,7 @@ export class EventsService {
     }
 
     const counts = await this.prisma.participation.groupBy({
-      by: ['eventId'],
+      by: ["eventId"],
       where: {
         eventId: { in: events.map((event) => event.id) },
         status: { in: Array.from(CAPACITY_OCCUPYING_STATUSES) },
@@ -57,7 +77,10 @@ export class EventsService {
       _count: { _all: true },
     });
     const countMap = new Map(
-      counts.map((c) => [c.eventId, (typeof c._count === 'number' ? c._count : c._count?._all) ?? 0]),
+      counts.map((c) => [
+        c.eventId,
+        (typeof c._count === "number" ? c._count : c._count?._all) ?? 0,
+      ]),
     );
 
     for (const event of events) {
@@ -82,7 +105,7 @@ export class EventsService {
       isPaid?: boolean;
       ownerId?: string;
       excludeMine?: boolean;
-      timeframe?: 'this-week' | 'next-week' | 'this-month';
+      timeframe?: "this-week" | "next-week" | "this-month";
       startDate?: string;
       endDate?: string;
     },
@@ -118,12 +141,23 @@ export class EventsService {
 
     const where: any = {};
     if (!ownerId) {
-      where.status = 'published';
+      where.status = "published";
     }
     if (ownerId) where.ownerId = ownerId;
     if (city) where.city = city;
     if (categoryId) where.categoryId = categoryId;
-    if (typeof isPaid === 'boolean') where.isPaid = isPaid;
+
+    const preferredCategories: string[] = [];
+    if (!categoryId && !ownerId && viewerId) {
+      const preferences = await this.prisma.userCategoryPreference.findMany({
+        where: { userId: viewerId },
+        select: { categoryId: true },
+      });
+      if (preferences.length > 0) {
+        preferredCategories.push(...preferences.map((p) => p.categoryId));
+      }
+    }
+    if (typeof isPaid === "boolean") where.isPaid = isPaid;
     if (!ownerId && !viewerIsAdult) {
       where.isAdultOnly = false;
     }
@@ -135,7 +169,10 @@ export class EventsService {
     }
 
     if (startDate || endDate || timeframe) {
-      const range = startDate || endDate ? this.resolveCustomRange(startDate, endDate) : this.resolveTimeframe(timeframe!);
+      const range =
+        startDate || endDate
+          ? this.resolveCustomRange(startDate, endDate)
+          : this.resolveTimeframe(timeframe!);
       if (range) {
         where.startAt = {
           ...(where.startAt ?? {}),
@@ -155,26 +192,42 @@ export class EventsService {
               endAt: { gte: new Date() },
             }
           : where,
-      orderBy: { startAt: 'asc' },
+      orderBy: { startAt: "asc" },
       include: {
         owner: { select: OWNER_SELECT },
       },
     });
 
     const availabilityMap = await this.computeAvailability(events);
+    const preferredSet = new Set(preferredCategories);
+
     const withAvailability = events.map((event) => ({
       ...event,
       availableSpots: availabilityMap.get(event.id) ?? null,
     }));
 
+    if (preferredSet.size > 0 && lat == null && lon == null) {
+      withAvailability.sort((a, b) => {
+        const aPreferred = preferredSet.has(a.categoryId);
+        const bPreferred = preferredSet.has(b.categoryId);
+        if (aPreferred !== bPreferred) {
+          return aPreferred ? -1 : 1;
+        }
+        return a.startAt.getTime() - b.startAt.getTime();
+      });
+    }
+
     if (lat != null && lon != null) {
       return withAvailability
         .map((event) => ({
           ...event,
-          distanceKm: haversineKm({ lat, lon }, { lat: event.lat!, lon: event.lon! }),
+          distanceKm: haversineKm(
+            { lat, lon },
+            { lat: event.lat!, lon: event.lon! },
+          ),
         }))
-        .filter((event) => event.distanceKm <= radiusKm)
-        .sort((a, b) => a.distanceKm - b.distanceKm);
+        .filter((event) => (event.distanceKm ?? Number.POSITIVE_INFINITY) <= radiusKm)
+        .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
     }
 
     return withAvailability;
@@ -198,7 +251,9 @@ export class EventsService {
         select: { birthDate: true },
       });
       if (!this.isAdult(viewer?.birthDate)) {
-        throw new ForbiddenException('Событие доступно только пользователям 18+');
+        throw new ForbiddenException(
+          "Событие доступно только пользователям 18+",
+        );
       }
     }
     // если событие «по заявке» — скрываем адрес для не-владельца/не-одобренного
@@ -210,42 +265,55 @@ export class EventsService {
           where: { eventId_userId: { eventId: id, userId: currentUserId } },
           select: { status: true },
         });
-        approved = part?.status === 'approved' || part?.status === 'attended';
+        approved = part?.status === "approved" || part?.status === "attended";
       }
       if (!isOwner && !approved) {
-        result = { ...result, address: null, lat: null, lon: null, isAddressHidden: true };
+        result = {
+          ...result,
+          address: null,
+          lat: null,
+          lon: null,
+          isAddressHidden: true,
+        };
       }
     }
     return result;
   }
-  async setStatus(id: string, status: 'published'|'draft', userId: string) {
-  const e = await this.prisma.event.findUnique({ where: { id } });
-  if (!e || e.ownerId !== userId) throw new ForbiddenException();
-  return this.prisma.event.update({ where: { id }, data: { status } });
-}
-async remove(id: string, userId: string) {
-  const e = await this.prisma.event.findUnique({ where: { id } });
-  if (!e || e.ownerId !== userId) throw new ForbiddenException();
-  return this.prisma.event.delete({ where: { id } });
-}
+  async setStatus(id: string, status: "published" | "draft", userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.event.findUnique({ where: { id } });
+      if (!event || event.ownerId !== userId) throw new ForbiddenException();
+
+      if (status === "published" && event.status !== "published") {
+        await tx.participation.deleteMany({ where: { eventId: id } });
+      }
+
+      return tx.event.update({ where: { id }, data: { status } });
+    });
+  }
+  async remove(id: string, userId: string) {
+    const e = await this.prisma.event.findUnique({ where: { id } });
+    if (!e || e.ownerId !== userId) throw new ForbiddenException();
+    return this.prisma.event.delete({ where: { id } });
+  }
   async create(ownerId: string, dto: CreateEventDto) {
     if (dto.capacity == null || Number.isNaN(dto.capacity)) {
-      throw new BadRequestException('Укажите количество участников (до 48).');
+      throw new BadRequestException("Укажите количество участников (до 48).");
     }
     if (dto.capacity > 48 || dto.capacity < 1) {
-      throw new BadRequestException('Максимальное количество участников — 48.');
+      throw new BadRequestException("Максимальное количество участников — 48.");
     }
 
     const start = new Date(dto.startAt);
     const end = new Date(dto.endAt);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException('Invalid startAt/endAt; must be ISO-8601');
+      throw new BadRequestException("Invalid startAt/endAt; must be ISO-8601");
     }
     if (dto.capacity == null || Number.isNaN(dto.capacity)) {
-      throw new BadRequestException('Укажите количество участников (до 48).');
+      throw new BadRequestException("Укажите количество участников (до 48).");
     }
     if (dto.capacity > 48 || dto.capacity < 1) {
-      throw new BadRequestException('Максимальное количество участников — 48.');
+      throw new BadRequestException("Максимальное количество участников — 48.");
     }
 
     let categoryId = dto.categoryId?.trim();
@@ -258,9 +326,9 @@ async remove(id: string, userId: string) {
       });
     } else {
       const cat = await this.prisma.category.upsert({
-        where: { id: 'default-category' },
+        where: { id: "default-category" },
         update: {},
-        create: { id: 'default-category', name: 'Встречи' },
+        create: { id: "default-category", name: "Встречи" },
       });
       categoryId = cat.id;
     }
@@ -275,10 +343,13 @@ async remove(id: string, userId: string) {
         currency: dto.currency ?? null,
         requiresApproval: !!dto.requiresApproval,
         isAdultOnly: !!dto.isAdultOnly,
-        startAt: start, endAt: end,
+        allowStories: dto.allowStories ?? true,
+        startAt: start,
+        endAt: end,
         city: dto.city,
         address: dto.address ?? null,
-        lat: dto.lat ?? null, lon: dto.lon ?? null,
+        lat: dto.lat ?? null,
+        lon: dto.lon ?? null,
         isAddressHidden: !!dto.isAddressHidden,
         capacity: dto.capacity,
         coverUrl: dto.coverUrl ?? null,
@@ -297,7 +368,7 @@ async remove(id: string, userId: string) {
     const start = new Date(dto.startAt);
     const end = new Date(dto.endAt);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException('Invalid startAt/endAt; must be ISO-8601');
+      throw new BadRequestException("Invalid startAt/endAt; must be ISO-8601");
     }
 
     const isPaid = !!dto.isPaid;
@@ -312,17 +383,18 @@ async remove(id: string, userId: string) {
     } else {
       categoryId = existing.categoryId;
     }
-    return this.prisma.event.update({
+    const updated = await this.prisma.event.update({
       where: { id },
       data: {
         title: dto.title,
         description: dto.description,
         categoryId,
         isPaid,
-        price: isPaid ? dto.price ?? null : null,
-        currency: isPaid ? dto.currency ?? null : null,
+        price: isPaid ? (dto.price ?? null) : null,
+        currency: isPaid ? (dto.currency ?? null) : null,
         requiresApproval: !!dto.requiresApproval,
         isAdultOnly: dto.isAdultOnly ?? existing.isAdultOnly,
+        allowStories: dto.allowStories ?? existing.allowStories,
         startAt: start,
         endAt: end,
         city: dto.city,
@@ -334,6 +406,10 @@ async remove(id: string, userId: string) {
         coverUrl: dto.coverUrl ?? null,
       },
     });
+
+    await this.notifications.notifyEventUpdated(id, ownerId);
+
+    return updated;
   }
 
   async listParticipating(userId: string) {
@@ -343,11 +419,11 @@ async remove(id: string, userId: string) {
         parts: {
           some: {
             userId,
-            status: { in: ['approved', 'attended', 'requested'] },
+            status: { in: ["approved", "attended", "requested"] },
           },
         },
       },
-      orderBy: { startAt: 'asc' },
+      orderBy: { startAt: "asc" },
       include: {
         parts: {
           where: { userId },
@@ -363,7 +439,7 @@ async remove(id: string, userId: string) {
     const reviewed = await this.prisma.review.findMany({
       where: {
         authorId: userId,
-        target: 'event',
+        target: "event",
         eventId: { in: events.map((e) => e.id) },
       },
       select: { eventId: true },
@@ -378,6 +454,252 @@ async remove(id: string, userId: string) {
     }));
   }
 
+  async listStories(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+    if (!event) {
+      throw new NotFoundException("Событие не найдено");
+    }
+
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    return this.prisma.eventStory.findMany({
+      where: { eventId, createdAt: { gte: cutoff } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createStory(eventId: string, userId: string, dto: CreateEventStoryDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        id: true,
+        ownerId: true,
+        startAt: true,
+        endAt: true,
+        allowStories: true,
+      },
+    });
+    if (!event) {
+      throw new NotFoundException("Событие не найдено");
+    }
+
+    if (event.startAt.getTime() > Date.now()) {
+      throw new BadRequestException(
+        "Добавлять истории можно после начала события",
+      );
+    }
+
+    if (event.endAt?.getTime() && event.endAt.getTime() < Date.now()) {
+      throw new BadRequestException(
+        "Событие завершилось — истории больше нельзя добавлять",
+      );
+    }
+
+    if (!event.allowStories) {
+      throw new BadRequestException(
+        "Организатор отключил истории для этого события",
+      );
+    }
+
+    const trimmedUrl = (dto.url ?? "").trim();
+    if (!trimmedUrl) {
+      throw new BadRequestException("Укажите ссылку на изображение истории");
+    }
+
+    let canAdd = event.ownerId === userId;
+    if (!canAdd) {
+      const participation = await this.prisma.participation.findUnique({
+        where: { eventId_userId: { eventId, userId } },
+        select: { status: true },
+      });
+      canAdd =
+        participation?.status === "approved" ||
+        participation?.status === "attended";
+    }
+
+    if (!canAdd) {
+      throw new ForbiddenException(
+        "Только участники события могут добавлять истории",
+      );
+    }
+
+    const story = await this.prisma.eventStory.create({
+      data: {
+        eventId,
+        authorId: userId,
+        url: trimmedUrl,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    await Promise.all([
+      this.notifications.notifyOrganizerStoryAdded(eventId, event.ownerId, userId, story.id),
+      this.notifications.notifyFollowersStoryAdded(eventId, userId, story.id),
+    ]);
+
+    return story;
+  }
+
+  async deleteStory(eventId: string, storyId: string, userId: string) {
+    const [event, story] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { ownerId: true },
+      }),
+      this.prisma.eventStory.findUnique({
+        where: { id: storyId },
+        select: { id: true, eventId: true, authorId: true },
+      }),
+    ]);
+
+    if (!event) {
+      throw new NotFoundException("Событие не найдено");
+    }
+    if (!story || story.eventId !== eventId) {
+      throw new NotFoundException("История не найдена");
+    }
+
+    const isOwner = event.ownerId === userId;
+    const isAuthor = story.authorId === userId;
+    if (!isOwner && !isAuthor) {
+      throw new ForbiddenException(
+        "Удалять историю может только организатор или автор",
+      );
+    }
+
+    await this.prisma.eventStory.delete({ where: { id: storyId } });
+    return { ok: true };
+  }
+
+  async listPhotos(eventId: string) {
+    return this.prisma.eventPhoto.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createPhoto(eventId: string, userId: string, dto: CreateEventPhotoDto) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { ownerId: true, endAt: true },
+    });
+    if (!event) {
+      throw new NotFoundException("Событие не найдено");
+    }
+    if (!event.endAt || event.endAt.getTime() > Date.now()) {
+      throw new BadRequestException(
+        "Фотоотчет доступен после завершения события",
+      );
+    }
+
+    let canAdd = event.ownerId === userId;
+    if (!canAdd) {
+      const participation = await this.prisma.participation.findUnique({
+        where: { eventId_userId: { eventId, userId } },
+        select: { status: true },
+      });
+      canAdd =
+        participation?.status === "approved" ||
+        participation?.status === "attended";
+    }
+
+    if (!canAdd) {
+      throw new ForbiddenException(
+        "Добавлять фото могут только участники и организатор",
+      );
+    }
+
+    const trimmedUrl = (dto.url ?? "").trim();
+    if (!trimmedUrl) {
+      throw new BadRequestException("Укажите ссылку на изображение");
+    }
+
+    const photo = await this.prisma.eventPhoto.create({
+      data: {
+        eventId,
+        authorId: userId,
+        url: trimmedUrl,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    await this.notifications.notifyOrganizerPhotoAdded(eventId, event.ownerId, userId, photo.id);
+
+    return photo;
+  }
+
+  async deletePhoto(eventId: string, photoId: string, userId: string) {
+    const [event, photo] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { ownerId: true },
+      }),
+      this.prisma.eventPhoto.findUnique({
+        where: { id: photoId },
+        select: { id: true, eventId: true, authorId: true },
+      }),
+    ]);
+
+    if (!event) {
+      throw new NotFoundException("Событие не найдено");
+    }
+    if (!photo || photo.eventId !== eventId) {
+      throw new NotFoundException("Фото не найдено");
+    }
+
+    const isOwner = event.ownerId === userId;
+    const isAuthor = photo.authorId === userId;
+    if (!isOwner && !isAuthor) {
+      throw new ForbiddenException(
+        "Удалять фото может только организатор или автор",
+      );
+    }
+
+    await this.prisma.eventPhoto.delete({ where: { id: photoId } });
+    return { ok: true };
+  }
+
   async createReview(eventId: string, authorId: string, dto: CreateReviewDto) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -387,23 +709,23 @@ async remove(id: string, userId: string) {
         ownerId: true,
       },
     });
-    if (!event) throw new NotFoundException('Событие не найдено');
+    if (!event) throw new NotFoundException("Событие не найдено");
     if (event.endAt.getTime() > Date.now()) {
-      throw new BadRequestException('Оценить событие можно после завершения');
+      throw new BadRequestException("Оценить событие можно после завершения");
     }
 
     const participation = await this.prisma.participation.findUnique({
       where: { eventId_userId: { eventId, userId: authorId } },
     });
-    if (!participation || participation.status !== 'approved') {
-      throw new ForbiddenException('Оценка доступна только участникам события');
+    if (!participation || participation.status !== "approved") {
+      throw new ForbiddenException("Оценка доступна только участникам события");
     }
 
     const existing = await this.prisma.review.findFirst({
-      where: { eventId, authorId, target: 'event' },
+      where: { eventId, authorId, target: "event" },
     });
     if (existing) {
-      throw new BadRequestException('Вы уже оставили отзыв для этого события');
+      throw new BadRequestException("Вы уже оставили отзыв для этого события");
     }
 
     try {
@@ -411,32 +733,46 @@ async remove(id: string, userId: string) {
         data: {
           eventId,
           authorId,
-          target: 'event',
+          target: "event",
           rating: dto.rating,
           text: dto.text,
         },
         include: {
           author: {
-            select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              email: true,
+            },
           },
-          event: { select: { id: true, title: true, startAt: true, endAt: true } },
+          event: {
+            select: { id: true, title: true, startAt: true, endAt: true },
+          },
         },
       });
     } catch (err) {
-      throw new BadRequestException('Не удалось сохранить отзыв');
+      throw new BadRequestException("Не удалось сохранить отзыв");
     }
   }
 
   async eventReviews(eventId: string, filter: EventReviewsFilterDto = {}) {
-    const where: any = { eventId, target: 'event' };
+    const where: any = { eventId, target: "event" };
     if (filter.rating) where.rating = filter.rating;
 
     return this.prisma.review.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         author: {
-          select: { id: true, firstName: true, lastName: true, avatarUrl: true, email: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            email: true,
+          },
         },
       },
     });
@@ -444,14 +780,14 @@ async remove(id: string, userId: string) {
 
   async myReview(eventId: string, userId: string) {
     return this.prisma.review.findFirst({
-      where: { eventId, authorId: userId, target: 'event' },
+      where: { eventId, authorId: userId, target: "event" },
     });
   }
 
   private async archiveExpiredEvents() {
     await this.prisma.event.updateMany({
-      where: { status: 'published', endAt: { lt: new Date() } },
-      data: { status: 'draft' },
+      where: { status: "published", endAt: { lt: new Date() } },
+      data: { status: "draft" },
     });
   }
 
@@ -470,17 +806,19 @@ async remove(id: string, userId: string) {
     return this.calculateAge(birthDate) >= 18;
   }
 
-  private resolveTimeframe(timeframe: 'this-week' | 'next-week' | 'this-month') {
+  private resolveTimeframe(
+    timeframe: "this-week" | "next-week" | "this-month",
+  ) {
     const now = new Date();
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
 
-    if (timeframe === 'this-week' || timeframe === 'next-week') {
+    if (timeframe === "this-week" || timeframe === "next-week") {
       const day = start.getDay();
       // convert to Monday start (0 => Sunday)
       const diff = day === 0 ? -6 : 1 - day;
       start.setDate(start.getDate() + diff);
-      if (timeframe === 'next-week') {
+      if (timeframe === "next-week") {
         start.setDate(start.getDate() + 7);
       }
       const end = new Date(start);
@@ -488,7 +826,7 @@ async remove(id: string, userId: string) {
       return { start, end };
     }
 
-    if (timeframe === 'this-month') {
+    if (timeframe === "this-month") {
       start.setDate(1);
       const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
       return { start, end };
@@ -517,7 +855,13 @@ async remove(id: string, userId: string) {
     }
     if (!startDate && !endDate) return null;
     const startOrNow = startDate ?? new Date();
-    const endOrStart = endDate ?? new Date(startOrNow.getFullYear(), startOrNow.getMonth(), startOrNow.getDate() + 1);
+    const endOrStart =
+      endDate ??
+      new Date(
+        startOrNow.getFullYear(),
+        startOrNow.getMonth(),
+        startOrNow.getDate() + 1,
+      );
     return { start: startOrNow, end: endOrStart };
   }
 }

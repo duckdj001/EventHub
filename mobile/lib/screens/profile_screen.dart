@@ -243,6 +243,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final authStore = _auth ?? AuthScope.of(context);
+    final passCtrl = TextEditingController();
+    bool busy = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setState) {
+          Future<void> submit() async {
+            final password = passCtrl.text.trim();
+            if (password.length < 6) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Введите пароль (минимум 6 символов)')),
+              );
+              return;
+            }
+
+            setState(() => busy = true);
+            try {
+              await authStore.deleteAccount(password);
+              if (!context.mounted) return;
+              Navigator.of(ctx).pop(true);
+              GoRouter.of(context).go('/login');
+            } catch (err) {
+              setState(() => busy = false);
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Не удалось удалить профиль: $err')),
+              );
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Удалить профиль?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Действие необратимо. Введите пароль для подтверждения.'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Пароль'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.of(ctx).pop(false),
+                child: const Text('Отмена'),
+              ),
+              TextButton(
+                onPressed: busy ? null : submit,
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Удалить'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Профиль удалён')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = _auth ?? AuthScope.of(context);
@@ -375,6 +450,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: const Text('Настройки и тема'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever_outlined, color: Colors.redAccent),
+                  title: const Text('Удалить профиль'),
+                  subtitle: const Text('Аккаунт будет обезличен'),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.redAccent),
+                  onTap: () => _confirmDeleteAccount(context),
                 ),
                 const Divider(height: 1),
                 ListTile(

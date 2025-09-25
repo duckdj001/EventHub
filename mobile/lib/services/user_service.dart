@@ -26,7 +26,8 @@ class UserService {
     return UserProfile.fromJson(res as Map<String, dynamic>);
   }
 
-  Future<void> requestEmailChange({required String newEmail, required String password}) async {
+  Future<void> requestEmailChange(
+      {required String newEmail, required String password}) async {
     await api.post('/users/me/email-request', {
       'newEmail': newEmail,
       'password': password,
@@ -62,14 +63,16 @@ class UserService {
     return list.map(SocialConnection.fromJson).toList();
   }
 
-  Future<List<Event>> eventsCreated(String userId, {String filter = 'all'}) async {
+  Future<List<Event>> eventsCreated(String userId,
+      {String filter = 'all'}) async {
     final query = filter == 'all' ? '' : '?filter=$filter';
     final res = await api.get('/users/$userId/events$query');
     final list = (res as List).cast<Map<String, dynamic>>();
     return list.map(Event.fromJson).toList();
   }
 
-  Future<List<Review>> reviews(String userId, {int? rating, String type = 'event'}) async {
+  Future<List<Review>> reviews(String userId,
+      {int? rating, String type = 'event'}) async {
     final params = <String>[];
     params.add('type=$type');
     if (rating != null) params.add('rating=$rating');

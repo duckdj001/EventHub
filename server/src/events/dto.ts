@@ -1,5 +1,14 @@
-import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Type } from "class-transformer";
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
 
 export class CreateEventDto {
   @IsString() title!: string;
@@ -13,6 +22,7 @@ export class CreateEventDto {
 
   @IsBoolean() @IsOptional() requiresApproval?: boolean;
   @IsBoolean() @IsOptional() isAdultOnly?: boolean;
+  @IsBoolean() @IsOptional() allowStories?: boolean;
 
   @IsDateString() startAt!: string;
   @IsDateString() endAt!: string;
@@ -50,4 +60,16 @@ export class EventReviewsFilterDto {
   @Min(1)
   @Max(5)
   rating?: number;
+}
+
+export class CreateEventStoryDto {
+  @IsString()
+  @IsNotEmpty()
+  url!: string;
+}
+
+export class CreateEventPhotoDto {
+  @IsString()
+  @IsNotEmpty()
+  url!: string;
 }

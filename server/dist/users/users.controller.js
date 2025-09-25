@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const jwt_guard_1 = require("../auth/jwt.guard");
 const users_service_1 = require("./users.service");
 const dto_1 = require("./dto");
+const public_decorator_1 = require("../auth/public.decorator");
 let UsersController = class UsersController {
     constructor(users) {
         this.users = users;
@@ -26,6 +27,18 @@ let UsersController = class UsersController {
     }
     update(req, dto) {
         return this.users.updateProfile(req.user.sub, dto);
+    }
+    myCategories(req) {
+        return this.users.getCategoryPreferences(req.user.sub);
+    }
+    updateCategories(req, dto) {
+        return this.users.updateCategoryPreferences(req.user.sub, dto.categories);
+    }
+    changePassword(req, dto) {
+        return this.users.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
+    }
+    deleteAccount(req, dto) {
+        return this.users.deleteAccount(req.user.sub, dto.password);
     }
     requestEmail(req, dto) {
         return this.users.requestEmailChange(req.user.sub, dto);
@@ -38,8 +51,8 @@ let UsersController = class UsersController {
         const viewerId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.sub;
         return this.users.profile(id, { viewerId });
     }
-    search(q, limit = '10') {
-        return this.users.search(q !== null && q !== void 0 ? q : '', Number(limit) || 10);
+    search(q, limit = "10") {
+        return this.users.search(q !== null && q !== void 0 ? q : "", Number(limit) || 10);
     }
     reviews(id, query) {
         return this.users.reviews(id, query);
@@ -51,7 +64,7 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Get)('me'),
+    (0, common_1.Get)("me"),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -59,7 +72,7 @@ __decorate([
 ], UsersController.prototype, "me", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Patch)('me'),
+    (0, common_1.Patch)("me"),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -68,7 +81,42 @@ __decorate([
 ], UsersController.prototype, "update", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Post)('me/email-request'),
+    (0, common_1.Get)("me/categories"),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "myCategories", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Patch)("me/categories"),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ transform: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.UpdateCategoryPreferencesDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "updateCategories", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Patch)("me/password"),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.ChangePasswordDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "changePassword", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)("me/delete"),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, dto_1.DeleteAccountDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "deleteAccount", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
+    (0, common_1.Post)("me/email-request"),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -77,7 +125,7 @@ __decorate([
 ], UsersController.prototype, "requestEmail", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_guard_1.JwtAuthGuard),
-    (0, common_1.Post)('me/email-confirm'),
+    (0, common_1.Post)("me/email-confirm"),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -85,39 +133,40 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "confirmEmail", null);
 __decorate([
-    (0, common_1.Get)(':id/public'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/public"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "publicProfile", null);
 __decorate([
-    (0, common_1.Get)('search'),
-    __param(0, (0, common_1.Query)('q')),
-    __param(1, (0, common_1.Query)('limit')),
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)("search"),
+    __param(0, (0, common_1.Query)("q")),
+    __param(1, (0, common_1.Query)("limit")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "search", null);
 __decorate([
-    (0, common_1.Get)(':id/reviews'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/reviews"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ transform: true }))),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, dto_1.ReviewsFilterDto]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "reviews", null);
 __decorate([
-    (0, common_1.Get)(':id/events'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Get)(":id/events"),
+    __param(0, (0, common_1.Param)("id")),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, dto_1.UserEventsFilterDto]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "events", null);
 exports.UsersController = UsersController = __decorate([
-    (0, common_1.Controller)('users'),
+    (0, common_1.Controller)("users"),
     __metadata("design:paramtypes", [users_service_1.UsersService])
 ], UsersController);
 //# sourceMappingURL=users.controller.js.map

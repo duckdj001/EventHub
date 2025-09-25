@@ -11,10 +11,15 @@ const common_1 = require("@nestjs/common");
 const participations_service_1 = require("./participations.service");
 const participations_controller_1 = require("./participations.controller");
 const prisma_service_1 = require("../common/prisma.service");
+const notifications_module_1 = require("../notifications/notifications.module");
 let ParticipationsModule = class ParticipationsModule {
 };
 exports.ParticipationsModule = ParticipationsModule;
 exports.ParticipationsModule = ParticipationsModule = __decorate([
-    (0, common_1.Module)({ controllers: [participations_controller_1.ParticipationsController], providers: [participations_service_1.ParticipationsService, prisma_service_1.PrismaService] })
+    (0, common_1.Module)({
+        imports: [notifications_module_1.NotificationsModule],
+        controllers: [participations_controller_1.ParticipationsController],
+        providers: [participations_service_1.ParticipationsService, prisma_service_1.PrismaService],
+    })
 ], ParticipationsModule);
 //# sourceMappingURL=participations.module.js.map

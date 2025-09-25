@@ -15,7 +15,7 @@ class MyEventsScreen extends StatefulWidget {
 }
 
 class _MyEventsScreenState extends State<MyEventsScreen> {
-  final api = ApiClient('http://localhost:3000');
+  final api = ApiClient('http://192.168.0.3:3000');
   List<Event> items = [];
   bool loading = true;
   String? error;

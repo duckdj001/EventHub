@@ -1,6 +1,6 @@
-import { PrismaService } from '../common/prisma.service';
-import { MailService } from '../common/mail.service';
-import { ConfirmEmailChangeDto, RequestEmailChangeDto, ReviewsFilterDto, UpdateProfileDto, UserEventsFilterDto } from './dto';
+import { PrismaService } from "../common/prisma.service";
+import { MailService } from "../common/mail.service";
+import { ConfirmEmailChangeDto, RequestEmailChangeDto, ReviewsFilterDto, UpdateProfileDto, UserEventsFilterDto } from "./dto";
 export declare class UsersService {
     private prisma;
     private mail;
@@ -21,13 +21,11 @@ export declare class UsersService {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -35,6 +33,14 @@ export declare class UsersService {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
     }>;
     profile(userId: string, opts?: {
         viewerId?: string;
@@ -55,13 +61,11 @@ export declare class UsersService {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -69,6 +73,14 @@ export declare class UsersService {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
     }>;
     search(query: string, limit?: number): Promise<{
         id: string;
@@ -93,13 +105,11 @@ export declare class UsersService {
             following: number;
             isFollowedByViewer: boolean;
         };
-        id: string;
-        pendingEmail: string | null;
-        firstName: string;
-        lastName: string;
-        birthDate: Date;
-        avatarUrl: string | null;
-        createdAt: Date;
+        categories: {
+            id: string;
+            name: string;
+        }[];
+        mustChangePassword: boolean;
         profile: {
             firstName: string | null;
             lastName: string | null;
@@ -107,6 +117,14 @@ export declare class UsersService {
             avatarUrl: string | null;
             bio: string | null;
         } | null;
+        id: string;
+        pendingEmail: string | null;
+        firstName: string;
+        lastName: string;
+        birthDate: Date;
+        avatarUrl: string | null;
+        createdAt: Date;
+        deletedAt: Date | null;
     }>;
     requestEmailChange(userId: string, dto: RequestEmailChangeDto): Promise<{
         ok: boolean;
@@ -131,13 +149,27 @@ export declare class UsersService {
     } & {
         id: string;
         createdAt: Date;
-        rating: number;
-        target: string;
         eventId: string;
         authorId: string;
         targetUserId: string | null;
+        target: string;
+        rating: number;
         text: string | null;
     })[]>;
+    getCategoryPreferences(userId: string): Promise<{
+        id: string;
+        name: string;
+    }[]>;
+    updateCategoryPreferences(userId: string, categoryIds: string[]): Promise<{
+        id: string;
+        name: string;
+    }[]>;
+    changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{
+        ok: boolean;
+    }>;
+    deleteAccount(userId: string, password: string): Promise<{
+        ok: boolean;
+    }>;
     eventsCreated(userId: string, filter: UserEventsFilterDto): Promise<{
         id: string;
         title: string;

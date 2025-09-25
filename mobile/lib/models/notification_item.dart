@@ -5,6 +5,8 @@ class AppNotification {
   final bool read;
   final DateTime createdAt;
   final NotificationEvent? event;
+  final NotificationUser? actor;
+  final Map<String, dynamic>? meta;
 
   const AppNotification({
     required this.id,
@@ -13,6 +15,8 @@ class AppNotification {
     required this.read,
     required this.createdAt,
     this.event,
+    this.actor,
+    this.meta,
   });
 
   bool get isUnread => !read;
@@ -36,6 +40,8 @@ class AppNotification {
       read: json['read'] == true,
       createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
       event: json['event'] != null ? NotificationEvent.fromJson(json['event'] as Map<String, dynamic>) : null,
+      actor: json['actor'] != null ? NotificationUser.fromJson(json['actor'] as Map<String, dynamic>) : null,
+      meta: json['meta'] is Map<String, dynamic> ? (json['meta'] as Map<String, dynamic>) : null,
     );
   }
 
@@ -48,7 +54,17 @@ class AppNotification {
   }
 }
 
-enum NotificationType { newEvent, eventReminder, unknown }
+enum NotificationType {
+  newEvent,
+  eventReminder,
+  participationApproved,
+  newFollower,
+  eventStoryAdded,
+  eventPhotoAdded,
+  followedStoryAdded,
+  eventUpdated,
+  unknown,
+}
 
 NotificationType _parseType(String? raw) {
   switch (raw) {
@@ -56,6 +72,18 @@ NotificationType _parseType(String? raw) {
       return NotificationType.newEvent;
     case 'EVENT_REMINDER':
       return NotificationType.eventReminder;
+    case 'PARTICIPATION_APPROVED':
+      return NotificationType.participationApproved;
+    case 'NEW_FOLLOWER':
+      return NotificationType.newFollower;
+    case 'EVENT_STORY_ADDED':
+      return NotificationType.eventStoryAdded;
+    case 'EVENT_PHOTO_ADDED':
+      return NotificationType.eventPhotoAdded;
+    case 'FOLLOWED_STORY_ADDED':
+      return NotificationType.followedStoryAdded;
+    case 'EVENT_UPDATED':
+      return NotificationType.eventUpdated;
     default:
       return NotificationType.unknown;
   }

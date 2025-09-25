@@ -100,6 +100,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.campaign_outlined;
       case NotificationType.eventReminder:
         return Icons.notifications_active_outlined;
+      case NotificationType.participationApproved:
+        return Icons.event_available_outlined;
+      case NotificationType.newFollower:
+        return Icons.person_add_alt_1_outlined;
+      case NotificationType.eventStoryAdded:
+        return Icons.auto_stories_outlined;
+      case NotificationType.eventPhotoAdded:
+        return Icons.photo_library_outlined;
+      case NotificationType.followedStoryAdded:
+        return Icons.play_circle_outline;
+      case NotificationType.eventUpdated:
+        return Icons.edit_calendar_outlined;
       case NotificationType.unknown:
         return Icons.notifications_none;
     }
@@ -190,6 +202,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       await _markOne(item);
                                     }
                                   : null,
+                              onOpenActor: item.actor != null
+                                  ? () async {
+                                      final actor = item.actor!;
+                                      await context.push('/users/${actor.id}');
+                                      await _markOne(item);
+                                    }
+                                  : null,
                             );
                           },
                         ),
@@ -206,6 +225,7 @@ class _NotificationTile extends StatelessWidget {
     required this.onMarkRead,
     this.onOpenEvent,
     this.onOpenOwner,
+    this.onOpenActor,
   });
 
   final AppNotification item;
@@ -214,6 +234,7 @@ class _NotificationTile extends StatelessWidget {
   final VoidCallback onMarkRead;
   final VoidCallback? onOpenEvent;
   final VoidCallback? onOpenOwner;
+  final VoidCallback? onOpenActor;
 
   @override
   Widget build(BuildContext context) {
@@ -252,46 +273,28 @@ class _NotificationTile extends StatelessWidget {
               if (item.event?.owner != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: InkWell(
+                  child: _buildUserChip(
+                    context,
+                    item.event!.owner!,
+                    theme: theme,
                     onTap: onOpenOwner,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: theme.colorScheme.surfaceVariant,
-                          backgroundImage: (item.event!.owner!.avatarUrl != null &&
-                                  item.event!.owner!.avatarUrl!.isNotEmpty)
-                              ? NetworkImage(item.event!.owner!.avatarUrl!)
-                              : null,
-                          child: (item.event!.owner!.avatarUrl == null ||
-                                  item.event!.owner!.avatarUrl!.isEmpty)
-                              ? Text(
-                                  item.event!.owner!.fullName.isNotEmpty
-                                      ? item.event!.owner!.fullName.characters.first.toUpperCase()
-                                      : 'U',
-                                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          item.event!.owner!.fullName,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.primary),
-                      ],
-                    ),
+                  ),
+                ),
+              if (item.actor != null && item.actor!.id != item.event?.owner?.id)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _buildUserChip(
+                    context,
+                    item.actor!,
+                    theme: theme,
+                    onTap: onOpenActor,
                   ),
                 ),
             ],
           ),
-          isThreeLine: (eventTitle != null && eventTitle.isNotEmpty) || item.event?.owner != null,
+          isThreeLine: (eventTitle != null && eventTitle.isNotEmpty) ||
+              item.event?.owner != null ||
+              item.actor != null,
           trailing: item.isUnread
               ? IconButton(
                   icon: const Icon(Icons.done),
@@ -303,4 +306,57 @@ class _NotificationTile extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildUserChip(
+  BuildContext context,
+  NotificationUser user, {
+  required ThemeData theme,
+  VoidCallback? onTap,
+}) {
+  final initialsSource = user.fullName.isNotEmpty ? user.fullName : user.id;
+  final initial = initialsSource.characters.isNotEmpty
+      ? initialsSource.characters.first.toUpperCase()
+      : 'U';
+
+  final avatarUrl = user.avatarUrl;
+
+  final content = Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      CircleAvatar(
+        radius: 14,
+        backgroundColor: theme.colorScheme.surfaceVariant,
+        backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+            ? NetworkImage(avatarUrl)
+            : null,
+        child: (avatarUrl == null || avatarUrl.isEmpty)
+            ? Text(
+                initial,
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+              )
+            : null,
+      ),
+      const SizedBox(width: 8),
+      Text(
+        user.fullName.isNotEmpty ? user.fullName : 'Пользователь',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(width: 4),
+      Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.primary),
+    ],
+  );
+
+  if (onTap == null) {
+    return content;
+  }
+
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: content,
+  );
 }
